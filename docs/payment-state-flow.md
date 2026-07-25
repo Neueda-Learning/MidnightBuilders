@@ -1,5 +1,7 @@
 # Payment Processing System - Payment State Flow
 
+> Source of truth: if any detail conflicts with iteration docs, follow `docs/iteration1/02-backend-method-design.md` and `docs/iteration1/03-interface-contracts.md`.
+
 ## 1. 文档说明
 
 本文档描述 Payment Processing System 中付款（Payment）的生命周期状态流转规则。
@@ -211,7 +213,7 @@ FAILED
 错误方式：
 
 ```
-PUT /payments/123
+PUT /api/payments/123
 
 {
     "status": "COMPLETED"
@@ -221,7 +223,7 @@ PUT /payments/123
 正确方式：
 
 ```
-POST /payments/123/process
+POST /api/payments/123/process
 ```
 
 由系统业务逻辑决定下一状态。

@@ -1,5 +1,7 @@
 # Payment Processing System 需求文档 V0.1
 
+> 实现细节基线：如与迭代文档有冲突，以 `docs/iteration1/01-project-structure.md`、`docs/iteration1/02-backend-method-design.md`、`docs/iteration1/03-interface-contracts.md` 为准。
+
 ## 1. 项目背景
 
 本项目是入职培训最终项目中的一个选题，主题是 **Payment Processing System**。项目重点是构建一个围绕“付款生命周期”的系统：一笔付款从创建开始，经过校验、发送、完成，或者在某个阶段失败。系统需要能够记录每一次状态变化，并支持用户查看付款详情、付款状态和历史记录。
@@ -73,7 +75,7 @@ Payment 是系统中的核心对象，代表一笔付款请求。
 | sourceAccount      | 付款来源账户            | 是     |
 | destinationAccount | 收款账户              | 是     |
 | amount             | 金额                | 是     |
-| currency           | 币种，例如 GBP、USD、EUR | 是     |
+| currency           | 币种，例如 CNY、GBP、USD、EUR | 是     |
 | reference          | 付款备注或业务说明         | 否     |
 | status             | 当前付款状态            | 是     |
 | idempotencyKey     | 幂等键，用于防止重复提交      | 建议必需  |
@@ -234,8 +236,8 @@ SENT → FAILED
 ### 8.3 币种规则
 
 * currency 不能为空；
-* currency 应符合 ISO 4217 格式，例如 GBP、USD、EUR；
-* 第一版可以只支持少数币种，例如 GBP、USD、EUR；
+* currency 应符合 ISO 4217 格式，例如 CNY、GBP、USD、EUR；
+* 第一版可以只支持少数币种（由团队统一确认并固定到配置），例如 CNY、GBP、USD、EUR；
 * 不支持的币种返回 INVALID_CURRENCY。
 
 ### 8.4 幂等性规则
@@ -301,6 +303,12 @@ SENT → FAILED
 POST /api/payments
 ```
 
+请求头：
+
+```http
+Idempotency-Key: request-001
+```
+
 请求示例：
 
 ```json
@@ -308,9 +316,8 @@ POST /api/payments
   "sourceAccount": "12345678",
   "destinationAccount": "87654321",
   "amount": 100.00,
-  "currency": "GBP",
-  "reference": "Invoice 1001",
-  "idempotencyKey": "request-001"
+  "currency": "CNY",
+  "reference": "Invoice 1001"
 }
 ```
 
@@ -327,7 +334,7 @@ POST /api/payments
   "id": "pay_001",
   "status": "CREATED",
   "amount": 100.00,
-  "currency": "GBP",
+  "currency": "CNY",
   "createdAt": "2026-07-25T10:00:00Z"
 }
 ```
@@ -405,6 +412,7 @@ GET /api/payments/{paymentId}/history
 | reference           | String        |
 | status              | String / Enum |
 | idempotency_key     | String        |
+| request_fingerprint | String        |
 | error_code          | String        |
 | error_message       | String        |
 | created_at          | Timestamp     |
@@ -539,26 +547,11 @@ GET /api/payments/{paymentId}/history
 
 项目说明的 Testing Considerations 也建议覆盖 happy path、validation failures、duplicate detection、invalid state transitions、concurrent updates 和 database failure simulation。
 
-## 15. 四人小组建议分工
+## 15. 分工基线说明
 
-| 成员   | 主要负责内容                   |
-| ---- | ------------------------ |
-| 成员 A | 需求整理、数据模型、数据库表设计         |
-| 成员 B | 创建付款、查询付款、付款列表 API       |
-| 成员 C | 状态机、付款处理逻辑、状态历史          |
-| 成员 D | 测试、Swagger/API 文档、前端页面原型 |
+本节采用 `docs/iteration1/01-project-structure.md`、`docs/iteration1/02-backend-method-design.md`、`docs/iteration1/03-interface-contracts.md` 的后端分工基线。
 
-建议不是完全割裂开发，而是：
-
-* 先全组一起确认需求和数据模型；
-* 核心状态机至少两个人一起设计；
-* 每个人都要理解完整业务流程；
-* 使用 Git 分支和 Pull Request；
-* 每天进行短会同步进度。
-
-项目说明也建议团队自行决定分工方式、制作任务列表、使用 Trello 等工具管理任务，并保持敏捷，不要一开始把数据模型做得太复杂。
-
-## 15. 四人小组建议分工（基于后端开发）
+**四人小组建议分工（基于后端开发）**
 
 考虑到你们当前技术栈是 **Java + Spring Boot + MySQL**，并且第一版目标是先把后端 MVP 做通，这里建议按“后端功能模块”来拆分，而不是按“人 + 页面”来拆分。这样每个人都有相对完整的后端职责，同时接口之间也比较容易并行开发。
 
