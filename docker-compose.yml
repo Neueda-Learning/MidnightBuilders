@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: midnightbuilders-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-payment_processing}
+      MYSQL_USER: ${MYSQL_USER:-payment_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-payment_pass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql_data:
+

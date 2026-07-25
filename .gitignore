@@ -1,0 +1,23 @@
+# IntelliJ
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Env files
+.env
+
+# Maven/Java build output
+**/target/
+
+
+# Node (future frontend)
+node_modules/
+dist/
+
