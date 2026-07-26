@@ -1,7 +1,5 @@
 # Payment Processing System - Architecture Design
 
-> Source of truth: if any detail conflicts with iteration docs, follow `docs/iteration1/01-project-structure.md` and `docs/iteration1/02-backend-method-design.md`.
-
 ## 1. 文档说明
 
 本文档描述 Payment Processing System 的系统架构设计。
@@ -462,7 +460,7 @@ ErrorResponse
 建议项目代码结构如下：
 
 ```text
-src/main/java/com/example/demo
+src/main/java/com/hsbc/paymentprocessing
 
 ├── controller
 │   └── PaymentController.java
@@ -470,13 +468,9 @@ src/main/java/com/example/demo
 ├── service
 │   ├── PaymentService.java
 │   ├── PaymentValidationService.java
-│   ├── PaymentIdempotencyService.java
-│   ├── PaymentLifecycleService.java
+│   ├── PaymentStateMachine.java
 │   ├── PaymentHistoryService.java
 │   └── PaymentProcessingSimulator.java
-│
-├── statemachine
-│   └── PaymentStateMachine.java
 │
 ├── repository
 │   ├── PaymentRepository.java
@@ -487,34 +481,19 @@ src/main/java/com/example/demo
 │   └── PaymentStatusHistory.java
 │
 ├── dto
-│   ├── request/
-│   │   └── CreatePaymentRequest.java
-│   └── response/
-│       ├── PaymentResponse.java
-│       ├── PaymentListItemResponse.java
-│       ├── ProcessPaymentResponse.java
-│       ├── PaymentHistoryResponse.java
-│       └── ErrorResponse.java
+│   ├── CreatePaymentRequest.java
+│   ├── PaymentResponse.java
+│   ├── PaymentHistoryResponse.java
+│   └── ErrorResponse.java
 │
 ├── enums
 │   ├── PaymentStatus.java
 │   └── PaymentErrorCode.java
 │
-├── mapper
-│   └── PaymentMapper.java
-│
-├── config
-│   ├── ClockConfig.java
-│   └── PaymentProperties.java
-│
-├── util
-│   └── RequestFingerprintGenerator.java
-│
 └── exception
-    ├── BusinessException.java
     ├── PaymentNotFoundException.java
-    ├── DuplicatePaymentException.java
     ├── InvalidStatusTransitionException.java
+    ├── PaymentValidationException.java
     └── GlobalExceptionHandler.java
 ```
 

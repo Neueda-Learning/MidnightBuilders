@@ -1,7 +1,5 @@
 # Payment Processing System 需求文档 V0.1
 
-> 实现细节基线：如与迭代文档有冲突，以 `docs/iteration1/01-project-structure.md`、`docs/iteration1/02-backend-method-design.md`、`docs/iteration1/03-interface-contracts.md` 为准。
-
 ## 1. 项目背景
 
 本项目是入职培训最终项目中的一个选题，主题是 **Payment Processing System**。项目重点是构建一个围绕“付款生命周期”的系统：一笔付款从创建开始，经过校验、发送、完成，或者在某个阶段失败。系统需要能够记录每一次状态变化，并支持用户查看付款详情、付款状态和历史记录。
@@ -75,7 +73,7 @@ Payment 是系统中的核心对象，代表一笔付款请求。
 | sourceAccount      | 付款来源账户            | 是     |
 | destinationAccount | 收款账户              | 是     |
 | amount             | 金额                | 是     |
-| currency           | 币种，例如 CNY、GBP、USD、EUR | 是     |
+| currency           | 币种，例如 GBP、USD、EUR | 是     |
 | reference          | 付款备注或业务说明         | 否     |
 | status             | 当前付款状态            | 是     |
 | idempotencyKey     | 幂等键，用于防止重复提交      | 建议必需  |
@@ -236,8 +234,8 @@ SENT → FAILED
 ### 8.3 币种规则
 
 * currency 不能为空；
-* currency 应符合 ISO 4217 格式，例如 CNY、GBP、USD、EUR；
-* 第一版可以只支持少数币种（由团队统一确认并固定到配置），例如 CNY、GBP、USD、EUR；
+* currency 应符合 ISO 4217 格式，例如 GBP、USD、EUR；
+* 第一版可以只支持少数币种，例如 GBP、USD、EUR；
 * 不支持的币种返回 INVALID_CURRENCY。
 
 ### 8.4 幂等性规则
@@ -303,12 +301,6 @@ SENT → FAILED
 POST /api/payments
 ```
 
-请求头：
-
-```http
-Idempotency-Key: request-001
-```
-
 请求示例：
 
 ```json
@@ -316,8 +308,9 @@ Idempotency-Key: request-001
   "sourceAccount": "12345678",
   "destinationAccount": "87654321",
   "amount": 100.00,
-  "currency": "CNY",
-  "reference": "Invoice 1001"
+  "currency": "GBP",
+  "reference": "Invoice 1001",
+  "idempotencyKey": "request-001"
 }
 ```
 
@@ -334,7 +327,7 @@ Idempotency-Key: request-001
   "id": "pay_001",
   "status": "CREATED",
   "amount": 100.00,
-  "currency": "CNY",
+  "currency": "GBP",
   "createdAt": "2026-07-25T10:00:00Z"
 }
 ```
@@ -412,7 +405,6 @@ GET /api/payments/{paymentId}/history
 | reference           | String        |
 | status              | String / Enum |
 | idempotency_key     | String        |
-| request_fingerprint | String        |
 | error_code          | String        |
 | error_message       | String        |
 | created_at          | Timestamp     |
@@ -547,151 +539,22 @@ GET /api/payments/{paymentId}/history
 
 项目说明的 Testing Considerations 也建议覆盖 happy path、validation failures、duplicate detection、invalid state transitions、concurrent updates 和 database failure simulation。
 
-## 15. 分工基线说明
+## 15. 四人小组建议分工
 
-本节采用 `docs/iteration1/01-project-structure.md`、`docs/iteration1/02-backend-method-design.md`、`docs/iteration1/03-interface-contracts.md` 的后端分工基线。
+| 成员   | 主要负责内容                   |
+| ---- | ------------------------ |
+| 成员 A | 需求整理、数据模型、数据库表设计         |
+| 成员 B | 创建付款、查询付款、付款列表 API       |
+| 成员 C | 状态机、付款处理逻辑、状态历史          |
+| 成员 D | 测试、Swagger/API 文档、前端页面原型 |
 
-**四人小组建议分工（基于后端开发）**
+建议不是完全割裂开发，而是：
 
-考虑到你们当前技术栈是 **Java + Spring Boot + MySQL**，并且第一版目标是先把后端 MVP 做通，这里建议按“后端功能模块”来拆分，而不是按“人 + 页面”来拆分。这样每个人都有相对完整的后端职责，同时接口之间也比较容易并行开发。
-
-### 15.1 四人后端分工建议
-
-| 成员   | 负责模块 | 主要功能范围 | 预期交付物 |
-| ---- | ---- | ---- | ---- |
-| 成员 A | 数据模型与持久化层 | 设计 `Payment`、`PaymentStatusHistory` 数据结构，设计数据库表，配置 JPA / Repository，处理 MySQL 表结构落地 | Entity、Repository、数据库表结构、基础数据访问能力 |
-| 成员 B | Payment 基础查询与创建 API | 实现创建付款、查询付款详情、付款列表、按状态筛选；处理创建请求参数校验；处理幂等键基础逻辑 | 创建/查询相关 Controller、Service、DTO、基础校验 |
-| 成员 C | Payment 生命周期处理 | 实现付款状态流转规则、`/process` 处理逻辑、失败处理、状态历史记录、非法状态转换校验 | 状态机/流转逻辑、处理接口、历史记录写入 |
-| 成员 D | 通用能力与质量保障 | 实现统一异常处理、错误码返回、Swagger/OpenAPI 文档、后端测试（单元测试/集成测试） | 全局异常处理、错误响应结构、接口文档、测试代码 |
-
-### 15.2 每个人更细的工作内容
-
-#### 成员 A：数据模型、数据库、Repository
-建议负责偏底层和基础设施的内容，确保其他 3 人都能在统一的数据结构上开发。
-
-主要任务：
-- 定义 `Payment` 实体字段；
-- 定义 `PaymentStatusHistory` 实体字段；
-- 定义 `PaymentStatus` 枚举；
-- 设计 `payments` 表和 `payment_status_history` 表；
-- 处理 `idempotency_key` 唯一约束；
-- 编写 Repository 接口；
-- 确保本地 MySQL 可以正常建表和连接；
-- 和成员 B、C 一起确认字段是否满足接口和状态流转需求。
-
-建议优先完成：
-1. `Payment` 数据模型；
-2. `PaymentStatusHistory` 数据模型；
-3. MySQL 表结构；
-4. Repository；
-5. 基础持久化验证。
-
----
-
-#### 成员 B：创建付款 + 查询类 API
-建议负责最先能跑通的“基础 CRUD 风格能力”，因为这部分是整个系统最容易最快出结果的地方。
-
-主要任务：
-- 实现 `POST /api/payments` 创建付款；
-- 实现 `GET /api/payments/{paymentId}` 查询付款详情；
-- 实现 `GET /api/payments` 查询付款列表；
-- 实现 `GET /api/payments?status=FAILED` 这类按状态筛选；
-- 编写创建付款请求 DTO / 响应 DTO；
-- 做基础参数校验，例如金额、币种、账户非空；
-- 和成员 A 对齐实体字段，和成员 D 对齐错误返回格式。
-
-建议优先完成：
-1. 创建付款接口；
-2. 查询单笔付款接口；
-3. 付款列表接口；
-4. 按状态筛选接口；
-5. 创建时幂等键的基础接入。
-
----
-
-#### 成员 C：状态机、处理流程、状态历史
-建议负责项目最核心的业务逻辑，也就是“付款如何从 CREATED 走到 COMPLETED 或 FAILED”。
-
-主要任务：
-- 定义允许的状态转换规则；
-- 实现 `POST /api/payments/{paymentId}/process`；
-- 实现从 `CREATED → VALIDATED → SENT → COMPLETED` 的处理流程；
-- 实现失败流转：`CREATED/VALIDATED/SENT → FAILED`；
-- 拒绝非法状态变更，例如 `COMPLETED → CREATED`；
-- 每次状态变化时写入 `payment_status_history`；
-- 实现 `GET /api/payments/{paymentId}/history` 所依赖的历史数据组织逻辑；
-- 和成员 A 对齐历史表结构，和成员 D 对齐错误码设计。
-
-建议优先完成：
-1. 状态枚举和状态转换规则；
-2. 处理付款主流程；
-3. 失败场景处理；
-4. 状态历史写入；
-5. 历史查询支撑逻辑。
-
----
-
-#### 成员 D：统一异常、文档、测试
-建议负责把项目“补完整”，确保这个后端不仅能写出来，而且能稳定演示、能解释、能测。
-
-主要任务：
-- 定义统一错误响应格式；
-- 实现全局异常处理；
-- 维护错误码，例如 `INVALID_AMOUNT`、`PAYMENT_NOT_FOUND`、`INVALID_STATUS_TRANSITION`；
-- 编写 Swagger/OpenAPI 文档；
-- 编写单元测试和集成测试；
-- 覆盖 happy path、校验失败、重复提交、非法状态流转、历史查询等场景；
-- 协助检查各成员接口返回格式是否一致。
-
-建议优先完成：
-1. 错误码和统一返回结构；
-2. 全局异常处理；
-3. Swagger/OpenAPI；
-4. Payment 创建/查询测试；
-5. Payment 处理流程与失败场景测试。
-
-### 15.3 建议的协作方式
-
-虽然按模块分工，但这 4 个人不是完全割裂开发，建议这样协作：
-
-- **A + B** 先对齐创建付款所需字段、DTO 与数据库结构；
-- **A + C** 先对齐状态机、历史表、错误字段；
-- **B + D** 对齐创建/查询接口的返回格式与错误码；
-- **C + D** 对齐处理流程测试、非法状态流转测试、失败场景测试；
-- 全组一起先确认：
-  - `Payment` 字段最终版；
-  - 状态枚举；
-  - 错误码集合；
-  - API 路径和响应结构。
-
-### 15.4 推荐开发顺序
-
-为了减少互相阻塞，建议后端按以下顺序推进：
-
-1. **成员 A** 先把实体、表结构、Repository 打底；
-2. **成员 B** 在此基础上先完成创建付款、查询付款、列表接口；
-3. **成员 C** 接着完成处理接口、状态机和历史记录；
-4. **成员 D** 全程并行补异常处理、Swagger 和测试；
-5. 最后全组联调完整主流程：创建 → 查询 → 处理 → 查历史 → 测失败。
-
-### 15.5 分支建议
-
-为了减少冲突，建议每个人至少使用独立功能分支：
-
-- 成员 A：`feature/payment-domain-and-repository`
-- 成员 B：`feature/payment-create-and-query-api`
-- 成员 C：`feature/payment-processing-and-history`
-- 成员 D：`feature/error-handling-swagger-tests`
-
-### 15.6 这套分工的好处
-
-这种拆法比较适合第一版 MVP，原因是：
-
-- 每个人都在做“后端功能”，没有人被边缘化；
-- A 做底层支撑，B/C 做核心业务，D 做质量闭环，职责清晰；
-- B 和 C 可以围绕不同接口并行开发；
-- D 能尽早统一错误格式和测试标准，避免最后返工；
-- 很适合你们当前这个 Payment Processing 项目的核心目标：**先把 REST API + 状态流转 + 历史记录做完整**。
+* 先全组一起确认需求和数据模型；
+* 核心状态机至少两个人一起设计；
+* 每个人都要理解完整业务流程；
+* 使用 Git 分支和 Pull Request；
+* 每天进行短会同步进度。
 
 项目说明也建议团队自行决定分工方式、制作任务列表、使用 Trello 等工具管理任务，并保持敏捷，不要一开始把数据模型做得太复杂。
 
