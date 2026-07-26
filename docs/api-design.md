@@ -1,5 +1,7 @@
 # Payment Processing System - API Design
 
+> Source of truth: if any detail conflicts with iteration docs, follow `docs/iteration1/03-interface-contracts.md`.
+
 ## 1. API Overview
 
 本文档定义 Payment Processing System 的 REST API。
@@ -69,6 +71,8 @@ Content-Type: application/json
 Idempotency-Key: payment-request-001
 ```
 
+说明：`Idempotency-Key` 为必填请求头，最大 100 字符。新建请求必须使用新值；网络重试必须复用同一个值。
+
 
 Body:
 
@@ -107,6 +111,12 @@ HTTP:
 
 ```
 201 Created
+```
+
+如果同一个 `Idempotency-Key` 且请求内容完全一致（重放场景），返回：
+
+```
+200 OK
 ```
 
 
@@ -195,6 +205,8 @@ Response:
 ## Description
 
 查询所有付款。
+
+默认建议按 `createdAt` 倒序返回（最新在前）。
 
 
 Example:
@@ -340,9 +352,16 @@ Response:
   "id": "payment-001",
   "previousStatus": "CREATED",
   "currentStatus": "COMPLETED",
-  "message": "Payment processed successfully"
+  "message": "Payment processed successfully",
+  "errorCode": null,
+  "errorMessage": null
 }
 ```
+
+说明：
+
+- 业务处理失败（例如校验、发送、确认阶段失败）时，`currentStatus` 返回 `FAILED`，并在响应中包含 `errorCode` 与 `errorMessage`；
+- 仅当发生未预期系统异常时返回 `500 PROCESSING_ERROR`。
 
 
 ---
@@ -433,6 +452,7 @@ Response:
 | PAYMENT_NOT_FOUND | 404 | Payment不存在 |
 | VALIDATION_FAILED | 400 | 校验失败 |
 | PROCESSING_ERROR | 500 | 系统处理错误 |
+| NETWORK_ERROR | 503 | 可选：网络/外部通信故障 |
 
 
 ---
@@ -477,6 +497,13 @@ payment-request-001
 返回已有 Payment-001
 
 不创建新的 Payment
+```
+
+同一个 `Idempotency-Key` 但请求内容不同：
+
+```
+409 Conflict
+errorCode = DUPLICATE_PAYMENT
 ```
 
 
