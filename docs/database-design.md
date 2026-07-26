@@ -1,7 +1,5 @@
 # Payment Processing System - Database Design
 
-> Source of truth: if any detail conflicts with iteration docs, follow `docs/iteration1/03-interface-contracts.md`.
-
 ## 1. 数据库设计说明
 
 本系统使用 MySQL 作为数据存储。
@@ -34,7 +32,6 @@ erDiagram
         VARCHAR reference
         VARCHAR status
         VARCHAR idempotency_key UK
-        VARCHAR request_fingerprint
         VARCHAR error_code
         VARCHAR error_message
         DATETIME created_at
@@ -74,8 +71,7 @@ erDiagram
 | currency | VARCHAR(3) | NOT NULL | 币种 |
 | reference | VARCHAR(255) | NULL | 付款备注 |
 | status | VARCHAR(20) | NOT NULL | 当前付款状态 |
-| idempotency_key | VARCHAR(100) | NOT NULL, UNIQUE | 防止重复付款 |
-| request_fingerprint | VARCHAR(64) | NOT NULL | 幂等请求内容指纹 |
+| idempotency_key | VARCHAR(100) | UNIQUE | 防止重复付款 |
 | error_code | VARCHAR(50) | NULL | 失败错误码 |
 | error_message | VARCHAR(255) | NULL | 失败原因 |
 | created_at | DATETIME | NOT NULL | 创建时间 |
@@ -274,8 +270,6 @@ PRIMARY KEY(id)
 INDEX(status)
 
 UNIQUE(idempotency_key)
-
-INDEX(created_at)
 ```
 
 
@@ -311,8 +305,6 @@ PRIMARY KEY(id)
 INDEX(payment_id)
 
 INDEX(changed_at)
-
-INDEX(payment_id, changed_at)
 ```
 
 
@@ -323,11 +315,6 @@ INDEX(payment_id, changed_at)
 ```
 某笔 Payment 的所有历史记录
 ```
-
-## 时间与时区约定
-
-- `created_at`、`updated_at`、`changed_at` 统一按 UTC 写入；
-- API 对外输出使用 ISO 8601（示例：`2026-07-25T10:00:00Z`）。
 
 ---
 
