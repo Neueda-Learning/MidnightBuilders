@@ -74,5 +74,6 @@
         <SOURCES />
       </library>
     </orderEntry>
+    <orderEntry type="library" name="Maven: org.springframework:spring-web:7.0.8" level="project" />
   </component>
 </module>
