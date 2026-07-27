@@ -16,10 +16,10 @@ import java.util.List;
  * {@link UnsupportedOperationException}，提示尚未实现。</p>
  */
 @Service
-public class PaymentServiceImpl implements PaymentService {
+public class PaymentServiceImpl extends PaymentService {
 
     @Override
-    public CreatePaymentResult createPayment(CreatePaymentRequest request, String idempotencyKey) {
+    public PaymentService.CreatePaymentResult createPayment(CreatePaymentRequest request, String idempotencyKey) {
         throw new UnsupportedOperationException("createPayment 尚未实现");
     }
 
