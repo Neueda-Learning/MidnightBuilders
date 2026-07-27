@@ -1,6 +1,14 @@
 package com.example.demo.dto.request;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+import java.math.BigDecimal;
 
 /**
  * DTO for payment creation request.
@@ -8,12 +16,6 @@ import jakarta.validation.constraints.*;
  * <p><b>Usage:</b> Request body for POST /api/payments.
  * Only contains fields that clients are allowed to provide; does not include
  * id, status, errorCode, createdAt, updatedAt, or other system-managed fields.</p>
- *
- * <p><b>Field-Level Validation:</b> Uses Jakarta Bean Validation annotations for basic type checking.
- * Business rules (e.g., "currency must be supported", "accounts must differ") are validated in Service layer.</p>
- *
- * <p><b>Important:</b> Min/max values here are constraints; PaymentValidationService performs
- * additional business validation (e.g., comparing against configured payment limits).</p>
  */
 public class CreatePaymentRequest {
 
@@ -27,31 +29,28 @@ public class CreatePaymentRequest {
 
     @NotNull(message = "amount is required")
     @DecimalMin(value = "0.01", message = "amount must be greater than 0")
-    @DecimalMax(value = "999999999.99", message = "amount must be within valid decimal range")
-    private java.math.BigDecimal amount;
+    @DecimalMax(value = "1000000.00", message = "amount must not exceed 1000000.00")
+    @Digits(integer = 7, fraction = 2, message = "amount must have up to 2 decimal places")
+    private BigDecimal amount;
 
     @NotBlank(message = "currency is required")
-    @Size(min = 3, max = 3, message = "currency must be exactly 3 characters")
+    @Pattern(regexp = "^[A-Z]{3}$", message = "currency must be a 3-letter uppercase ISO code")
     private String currency;
 
     @Size(max = 255, message = "reference must not exceed 255 characters")
     private String reference;
 
-    // ==================== Constructors ====================
-
     public CreatePaymentRequest() {
     }
 
     public CreatePaymentRequest(String sourceAccount, String destinationAccount,
-                                java.math.BigDecimal amount, String currency, String reference) {
+                                BigDecimal amount, String currency, String reference) {
         this.sourceAccount = sourceAccount;
         this.destinationAccount = destinationAccount;
         this.amount = amount;
         this.currency = currency;
         this.reference = reference;
     }
-
-    // ==================== Getters & Setters ====================
 
     public String getSourceAccount() {
         return sourceAccount;
@@ -69,11 +68,11 @@ public class CreatePaymentRequest {
         this.destinationAccount = destinationAccount;
     }
 
-    public java.math.BigDecimal getAmount() {
+    public BigDecimal getAmount() {
         return amount;
     }
 
-    public void setAmount(java.math.BigDecimal amount) {
+    public void setAmount(BigDecimal amount) {
         this.amount = amount;
     }
 
@@ -103,4 +102,3 @@ public class CreatePaymentRequest {
                 '}';
     }
 }
-
