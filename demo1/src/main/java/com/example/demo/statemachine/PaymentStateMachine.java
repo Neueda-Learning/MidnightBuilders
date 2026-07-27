@@ -35,22 +35,6 @@ public class PaymentStateMachine {
     /**
      * Build the immutable transition table once.
      */
-//    {
-//      CREATED:
-//     [VALIDATED, FAILED],
-//
-//      VALIDATED:
-//     [SENT, FAILED],
-//
-//      SENT:
-//     [COMPLETED, FAILED],
-//
-//      COMPLETED:
-//     [],
-//
-//      FAILED:
-//     []
-//    }
     public PaymentStateMachine() {
         EnumMap<PaymentStatus, Set<PaymentStatus>> table = new EnumMap<>(PaymentStatus.class);
         table.put(PaymentStatus.CREATED, Set.of(PaymentStatus.VALIDATED, PaymentStatus.FAILED));
