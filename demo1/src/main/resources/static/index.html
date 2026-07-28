@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Midnight Pay 企业付款处理工作台">
+    <title>Midnight Pay · 付款处理工作台</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="主导航">
+            <a class="brand" href="#dashboard" aria-label="Midnight Pay 首页">
+                <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+                <span><strong>Midnight</strong><small>PAYMENTS</small></span>
+            </a>
+
+            <nav class="nav-list">
+                <a class="nav-item active" href="#dashboard" data-view="dashboard">
+                    <span class="nav-icon">⌂</span><span>工作台</span>
+                </a>
+                <a class="nav-item" href="#payments" data-view="payments">
+                    <span class="nav-icon">↗</span><span>付款管理</span>
+                </a>
+                <button class="nav-item" type="button" data-action="open-create">
+                    <span class="nav-icon">＋</span><span>新建付款</span>
+                </button>
+                <a class="nav-item" href="#audit" data-view="audit">
+                    <span class="nav-icon">◷</span><span>审计记录</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-foot">
+                <div class="environment"><span></span> UAT 环境</div>
+                <p>Payment Ops Console</p>
+                <small>Version 1.0.0</small>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <button class="mobile-menu" type="button" aria-label="打开导航" data-action="toggle-menu">☰</button>
+                <div class="breadcrumb"><span>企业支付</span><b>/</b><strong id="pageBreadcrumb">工作台</strong></div>
+                <div class="top-actions">
+                    <button class="icon-button" type="button" aria-label="刷新数据" data-action="refresh">↻</button>
+                    <div class="operator"><span class="avatar">YL</span><span><strong>运营专员</strong><small>Payment Operations</small></span></div>
+                </div>
+            </header>
+
+            <div class="page-wrap">
+                <section class="page-heading">
+                    <div>
+                        <p class="eyebrow">PAYMENT OPERATIONS</p>
+                        <h1>付款处理工作台</h1>
+                        <p>集中管理付款指令、处理状态与完整审计轨迹。</p>
+                    </div>
+                    <button class="button button-primary" type="button" data-action="open-create"><span>＋</span> 新建付款</button>
+                </section>
+
+                <section class="metrics" aria-label="付款数据概览">
+                    <article class="metric-card featured">
+                        <div class="metric-label"><span>本期付款总额</span><i>实时</i></div>
+                        <strong id="totalAmount">¥0.00</strong>
+                        <p><span class="trend">↗ 8.4%</span> 较上一周期</p>
+                        <div class="metric-glow"></div>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-label"><span>付款总笔数</span><i class="metric-symbol">↗</i></div>
+                        <strong id="totalCount">0</strong>
+                        <p><span class="muted-dot"></span> 当前筛选范围</p>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-label"><span>处理成功率</span><i class="metric-symbol success">✓</i></div>
+                        <strong id="successRate">0%</strong>
+                        <p><span class="trend">稳定</span> 运行表现良好</p>
+                    </article>
+                    <article class="metric-card">
+                        <div class="metric-label"><span>待处理指令</span><i class="metric-symbol warning">!</i></div>
+                        <strong id="pendingCount">0</strong>
+                        <p>需要运营人员关注</p>
+                    </article>
+                </section>
+
+                <section class="panel payments-panel" id="payments">
+                    <div class="panel-head">
+                        <div><h2>近期付款</h2><p>查看并跟踪付款处理状态</p></div>
+                        <div class="panel-tools">
+                            <label class="search-box"><span>⌕</span><input id="paymentSearch" type="search" placeholder="搜索付款 ID" autocomplete="off"></label>
+                            <select id="statusFilter" aria-label="按状态筛选">
+                                <option value="">全部状态</option>
+                                <option value="CREATED">待处理</option>
+                                <option value="VALIDATED">已校验</option>
+                                <option value="SENT">已发送</option>
+                                <option value="COMPLETED">已完成</option>
+                                <option value="FAILED">失败</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>付款编号</th><th>创建时间</th><th>金额</th><th>状态</th><th>异常信息</th><th aria-label="操作"></th></tr></thead>
+                            <tbody id="paymentTableBody"></tbody>
+                        </table>
+                        <div class="empty-state" id="emptyState" hidden><span>◇</span><h3>暂无匹配付款</h3><p>调整筛选条件，或新建一笔付款。</p></div>
+                    </div>
+                    <div class="panel-foot"><span id="resultCount">共 0 笔付款</span><span>数据按创建时间倒序展示</span></div>
+                </section>
+
+                <section class="flow-strip" aria-label="付款生命周期">
+                    <div><p class="eyebrow">LIFECYCLE</p><h2>每一步，都清晰可追溯</h2></div>
+                    <ol><li><b>01</b><span><strong>创建</strong><small>CREATED</small></span></li><li><b>02</b><span><strong>校验</strong><small>VALIDATED</small></span></li><li><b>03</b><span><strong>发送</strong><small>SENT</small></span></li><li><b>04</b><span><strong>完成</strong><small>COMPLETED</small></span></li></ol>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+    <aside class="drawer" id="detailDrawer" aria-labelledby="detailTitle" aria-hidden="true">
+        <div class="drawer-head"><div><p class="eyebrow">PAYMENT DETAIL</p><h2 id="detailTitle">付款详情</h2></div><button class="icon-button" type="button" aria-label="关闭详情" data-action="close-detail">×</button></div>
+        <div id="detailContent" class="drawer-content"></div>
+    </aside>
+
+    <div class="modal-backdrop" id="createModal" hidden>
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+            <div class="modal-head"><div><p class="eyebrow">NEW PAYMENT</p><h2 id="createTitle">创建付款指令</h2><p>请核对付款信息，提交后将生成唯一付款编号。</p></div><button class="icon-button" type="button" aria-label="关闭" data-action="close-create">×</button></div>
+            <form id="createPaymentForm" novalidate>
+                <div class="form-grid">
+                    <label><span>付款账户 <em>*</em></span><input name="sourceAccount" maxlength="50" placeholder="例如：ACC-CN-001" required><small class="field-error"></small></label>
+                    <label><span>收款账户 <em>*</em></span><input name="destinationAccount" maxlength="50" placeholder="例如：ACC-CN-002" required><small class="field-error"></small></label>
+                    <label><span>付款金额 <em>*</em></span><div class="amount-input"><select name="currency" aria-label="币种"><option>CNY</option><option>USD</option><option>GBP</option><option>EUR</option></select><input name="amount" type="number" min="0.01" max="1000000" step="0.01" placeholder="0.00" required></div><small class="field-error"></small></label>
+                    <label><span>幂等键 <em>*</em></span><input name="idempotencyKey" maxlength="100" required><small>用于防止重复提交，已为你自动生成</small><small class="field-error"></small></label>
+                    <label class="full"><span>付款用途</span><textarea name="reference" maxlength="255" rows="3" placeholder="例如：7 月供应商服务费"></textarea><small class="char-count">0 / 255</small></label>
+                </div>
+                <div class="modal-actions"><button class="button button-ghost" type="button" data-action="close-create">取消</button><button class="button button-primary" type="submit"><span class="button-text">提交付款</span><span class="spinner" hidden></span></button></div>
+            </form>
+        </section>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>
