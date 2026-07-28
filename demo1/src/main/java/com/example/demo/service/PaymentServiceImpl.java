@@ -5,8 +5,18 @@ package com.example.demo.service;
  *
  * <p>The active business implementation is {@link PaymentService}.</p>
  */
-@Deprecated
-public final class PaymentServiceImpl {
+@Service
+public class PaymentServiceImpl extends PaymentService {
+
+    @Override
+    public PaymentService.CreatePaymentResult createPayment(CreatePaymentRequest request, String idempotencyKey) {
+        throw new UnsupportedOperationException("createPayment 尚未实现");
+    }
+
+    @Override
+    public PaymentResponse getPayment(String paymentId) {
+        throw new UnsupportedOperationException("getPayment 尚未实现");
+    }
 
     private PaymentServiceImpl() {
         // Prevent instantiation.
