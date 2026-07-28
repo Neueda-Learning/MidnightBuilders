@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.config.PaymentProperties;
 import com.example.demo.dto.internal.IdempotencyDecision;
 import com.example.demo.dto.request.CreatePaymentRequest;
 import com.example.demo.entity.Payment;
@@ -39,9 +40,6 @@ import java.util.Optional;
 @Service
 public class PaymentIdempotencyService {
 
-    /** Idempotency-Key 最大长度（来自文档约束）。 */
-    private static final int IDEMPOTENCY_KEY_MAX_LENGTH = 100;
-
     /** 兜底唯一约束关键字（用于解析异常消息）。 */
     private static final String UNIQUE_KEYWORD = "unique";
 
@@ -50,20 +48,28 @@ public class PaymentIdempotencyService {
 
     private final PaymentRepository paymentRepository;
     private final RequestFingerprintGenerator requestFingerprintGenerator;
+    private final PaymentProperties.Idempotency idempotencyProperties;
 
     /**
      * 构造器注入。
      *
      * @param paymentRepository 付款仓储
      * @param requestFingerprintGenerator 请求指纹生成器
+     * @param paymentProperties 付款配置属性
      */
     @Autowired
     public PaymentIdempotencyService(PaymentRepository paymentRepository,
-                                     RequestFingerprintGenerator requestFingerprintGenerator) {
+                                     RequestFingerprintGenerator requestFingerprintGenerator,
+                                     PaymentProperties paymentProperties) {
         this.paymentRepository = Objects.requireNonNull(paymentRepository, "paymentRepository must not be null");
         this.requestFingerprintGenerator = Objects.requireNonNull(
                 requestFingerprintGenerator,
                 "requestFingerprintGenerator must not be null"
+        );
+        Objects.requireNonNull(paymentProperties, "paymentProperties must not be null");
+        this.idempotencyProperties = Objects.requireNonNull(
+                paymentProperties.getIdempotency(),
+                "paymentProperties.idempotency must not be null"
         );
     }
 
@@ -86,14 +92,15 @@ public class PaymentIdempotencyService {
             throw validationFailure(PaymentErrorCode.VALIDATION_FAILED, "Idempotency-Key header is required");
         }
 
-        String normalizedKey = idempotencyKey.trim();
+        String normalizedKey = idempotencyProperties.normalizeKey(idempotencyKey);
+        int keyMaxLength = idempotencyProperties.getKeyMaxLength();
         if (normalizedKey.isEmpty()) {
             throw validationFailure(PaymentErrorCode.VALIDATION_FAILED, "Idempotency-Key must not be blank");
         }
-        if (normalizedKey.length() > IDEMPOTENCY_KEY_MAX_LENGTH) {
+        if (normalizedKey.length() > keyMaxLength) {
             throw validationFailure(
                     PaymentErrorCode.VALIDATION_FAILED,
-                    "Idempotency-Key must not exceed " + IDEMPOTENCY_KEY_MAX_LENGTH + " characters"
+                    "Idempotency-Key must not exceed " + keyMaxLength + " characters"
             );
         }
 

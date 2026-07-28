@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.config.PaymentProperties;
 import com.example.demo.dto.request.CreatePaymentRequest;
 import com.example.demo.entity.Payment;
 import com.example.demo.enums.PaymentStatus;
@@ -8,8 +9,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -35,11 +36,11 @@ class PaymentValidationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PaymentValidationService(
-                new BigDecimal("1000000.00"),
-                Set.of("USD", "EUR", "GBP", "CNY"),
-                Pattern.compile("^[A-Za-z0-9]{3,50}$")
-        );
+        PaymentProperties.Validation validation = new PaymentProperties.Validation();
+        validation.setMaxAmount(new BigDecimal("1000000.00"));
+        validation.setSupportedCurrencies(new LinkedHashSet<>(Set.of("USD", "EUR", "GBP", "CNY")));
+        validation.setAccountPattern("^[A-Za-z0-9]{3,50}$");
+        service = new PaymentValidationService(validation);
     }
 
     @Test
