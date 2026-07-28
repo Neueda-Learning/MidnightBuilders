@@ -1,11 +1,16 @@
 package com.example.demo.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-
 /**
- * DTO returned after invoking payment processing.
+ * DTO for payment processing result response.
+ *
+ * <p><b>Usage:</b> Returned by POST /api/payments/{id}/process.</p>
+ *
+ * <p><b>Fields:</b> id, previousStatus, currentStatus, message,
+ * errorCode (nullable), errorMessage (nullable).</p>
+ *
+ * <p><b>JSON Serialization:</b> nullable error fields are part of the response
+ * contract and may be null when processing succeeds.</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ProcessPaymentResponse {
 
     private String id;
