@@ -1,0 +1,44 @@
+feat(exception): implement complete exception handling system with business exceptions and global handler
+
+## What changed
+- Add `exception/BusinessException.java`: Base exception class with errorCode, httpStatus, and message fields for all business failures
+- Add `exception/PaymentNotFoundException.java`: Specialized exception for missing payment (404 Conflict)
+- Add `exception/DuplicatePaymentException.java`: Specialized exception for idempotency key conflict (409 Conflict)
+- Add `exception/InvalidStatusTransitionException.java`: Specialized exception for illegal state transitions (400)
+- Add `dto/response/ErrorResponse.java`: Unified error response DTO with timestamp, status, errorCode, message, and path; includes builder pattern and factory methods
+- Add `exception/GlobalExceptionHandler.java`: @ControllerAdvice handler with methods for:
+  - `handleBusinessException`: Business exceptions mapped to errorCode and httpStatus
+  - `handleMethodArgumentNotValid`: DTO validation failures aggregated into 400 response
+  - `handleMissingRequestHeader`: Missing required header (e.g., Idempotency-Key) returns 400
+  - `handleUnexpectedException`: Catches all unexpected exceptions, logs full stack, returns generic 500
+
+## Why
+- Centralize and standardize exception handling across all layers
+- Provide consistent error response format to API clients (JSON ErrorResponse)
+- Support stable error codes for client-side error detection and handling
+- Separate business exceptions (expected failures) from system exceptions (unexpected failures)
+- Protect internal implementation details by not exposing full stack traces to clients
+- Enable semantic exception creation through specialized exception classes and factory methods
+
+## How to test
+- [x] .\mvnw.cmd clean compile (SUCCESS)
+- [x] .\mvnw.cmd test (BUILD SUCCESS, 46/46 tests passing)
+- [x] All exception classes instantiate and compile correctly
+- [x] GlobalExceptionHandler interceptor registration verified in Spring context
+
+## Checklist
+- [x] Single-purpose PR (focuses only on exception handling system)
+- [x] No secrets committed
+- [x] Complete JavaDoc documentation for all public classes and methods
+- [x] Chinese inline comments for implementation details
+- [x] Comprehensive error code mapping (INVALID_AMOUNT, INVALID_CURRENCY, INVALID_ACCOUNT, SAME_SOURCE_AND_DESTINATION, VALIDATION_FAILED, INVALID_STATUS_TRANSITION, PAYMENT_NOT_FOUND, DUPLICATE_PAYMENT, PROCESSING_ERROR, NETWORK_ERROR)
+- [x] Integrated with PaymentValidationService, PaymentIdempotencyService, PaymentLifecycleService
+- [x] All tests passing (no regressions)
+
+## Error Codes Supported
+400 - INVALID_AMOUNT, INVALID_CURRENCY, INVALID_ACCOUNT, SAME_SOURCE_AND_DESTINATION, VALIDATION_FAILED, INVALID_STATUS_TRANSITION
+404 - PAYMENT_NOT_FOUND
+409 - DUPLICATE_PAYMENT
+500 - PROCESSING_ERROR
+503 - NETWORK_ERROR (optional)
+
