@@ -1,5 +1,6 @@
 import { paymentApi } from "./api.js";
 
+const UI_LOG_PREFIX = "[PaymentUI]";
 const state = { payments: [], selectedId: null };
 const statusLabels = { CREATED: "待处理", VALIDATED: "已校验", SENT: "已发送", COMPLETED: "已完成", FAILED: "失败" };
 const currencyLocales = { CNY: "zh-CN", USD: "en-US", GBP: "en-GB", EUR: "de-DE" };
@@ -17,6 +18,9 @@ const elements = {
     detailContent: document.querySelector("#detailContent"),
     toastRegion: document.querySelector("#toastRegion")
 };
+
+const submitButton = elements.form?.querySelector('[type="submit"]');
+let currentIdempotencyKey = "";
 
 function escapeHtml(value = "") {
     return String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
@@ -50,6 +54,32 @@ function renderMetrics() {
     document.querySelector("#pendingCount").textContent = pending;
 }
 
+function setFieldError(input, message) {
+    input.classList.add("invalid");
+    const errorNode = input.closest("label")?.querySelector(".field-error");
+    if (errorNode) {
+        errorNode.textContent = message;
+    }
+    console.warn(`${UI_LOG_PREFIX} Field validation failed`, {
+        field: input?.name || input?.id || "unknown",
+        message
+    });
+}
+
+function maskAccount(value) {
+    return value ? `***${String(value).slice(-4)}` : "<empty>";
+}
+
+function maskToken(value) {
+    if (!value) {
+        return "<empty>";
+    }
+    if (value.length <= 10) {
+        return `${value.slice(0, 2)}***${value.slice(-2)}`;
+    }
+    return `${value.slice(0, 6)}***${value.slice(-4)}`;
+}
+
 function renderPayments() {
     const term = elements.search.value.trim().toLowerCase();
     const filtered = state.payments.filter((payment) => payment.id.toLowerCase().includes(term));
@@ -68,57 +98,131 @@ function renderPayments() {
 }
 
 async function loadPayments({ quiet = false } = {}) {
+    console.info(`${UI_LOG_PREFIX} Loading payments`, {
+        quiet,
+        statusFilter: elements.statusFilter.value || "ALL"
+    });
     try {
         state.payments = await paymentApi.list(elements.statusFilter.value);
         renderPayments();
+        console.info(`${UI_LOG_PREFIX} Payments loaded`, { count: state.payments.length });
         if (!quiet) toast("付款数据已更新");
     } catch (error) {
         state.payments = [];
         renderPayments();
+        console.error(`${UI_LOG_PREFIX} Failed to load payments`, {
+            code: error.code,
+            status: error.status,
+            message: error.message
+        });
         toast(`${error.code ? `${error.code}：` : ""}${error.message}`, "error");
     }
 }
 
 function newIdempotencyKey() {
+    if (window.crypto?.randomUUID) {
+        return `payment-${window.crypto.randomUUID()}`;
+    }
     return `payment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function ensureIdempotencyKey() {
+    const field = elements.form.elements.idempotencyKey;
+    const normalized = (field?.value || currentIdempotencyKey || "").trim();
+    if (normalized) {
+        if (field) {
+            field.value = normalized;
+        }
+        currentIdempotencyKey = normalized;
+        return normalized;
+    }
+    const generated = newIdempotencyKey();
+    if (field) {
+        field.value = generated;
+    }
+    currentIdempotencyKey = generated;
+    return generated;
 }
 
 function openCreate() {
     elements.form.reset();
-    elements.form.elements.idempotencyKey.value = newIdempotencyKey();
+    currentIdempotencyKey = newIdempotencyKey();
+    if (elements.form.elements.idempotencyKey) {
+        elements.form.elements.idempotencyKey.value = currentIdempotencyKey;
+    }
+    elements.form.elements.reference.closest("label").querySelector(".char-count").textContent = "0 / 255";
     elements.modal.hidden = false;
+    elements.modal.classList.add("is-open");
+    elements.modal.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    console.info(`${UI_LOG_PREFIX} Create payment modal opened`, {
+        generatedIdempotencyKey: maskToken(currentIdempotencyKey)
+    });
     window.setTimeout(() => elements.form.elements.sourceAccount.focus(), 50);
 }
 
 function closeCreate() {
     elements.modal.hidden = true;
+    elements.modal.classList.remove("is-open");
+    elements.modal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+    console.info(`${UI_LOG_PREFIX} Create payment modal closed`);
+}
+
+function logSubmitButtonClick() {
+    console.info(`${UI_LOG_PREFIX} Submit button clicked`, {
+        disabled: submitButton?.disabled,
+        modalHidden: elements.modal.hidden
+    });
 }
 
 function validateForm() {
     let valid = true;
+    console.info(`${UI_LOG_PREFIX} Validating payment form`);
     elements.form.querySelectorAll(".field-error").forEach((node) => { node.textContent = ""; });
     elements.form.querySelectorAll(".invalid").forEach((node) => node.classList.remove("invalid"));
     const source = elements.form.elements.sourceAccount;
     const destination = elements.form.elements.destinationAccount;
     const amount = elements.form.elements.amount;
-    const setError = (input, message) => { input.classList.add("invalid"); input.closest("label").querySelector(".field-error").textContent = message; valid = false; };
+    const setError = (input, message) => { setFieldError(input, message); valid = false; };
     if (!source.value.trim()) setError(source, "请输入付款账户");
     if (!destination.value.trim()) setError(destination, "请输入收款账户");
     if (source.value.trim() && source.value.trim() === destination.value.trim()) setError(destination, "付款账户与收款账户不能相同");
     if (!amount.value || Number(amount.value) <= 0 || Number(amount.value) > 1000000) setError(amount, "金额须在 0.01 至 1,000,000.00 之间");
+    const idempotencyKey = ensureIdempotencyKey();
+    console.info(`${UI_LOG_PREFIX} Payment form validation completed`, {
+        valid,
+        sourceAccount: maskAccount(source.value.trim()),
+        destinationAccount: maskAccount(destination.value.trim()),
+        amount: amount.value ? Number(amount.value) : null,
+        currency: elements.form.elements.currency.value,
+        idempotencyKey: maskToken(idempotencyKey)
+    });
     return valid;
 }
 
 async function submitPayment(event) {
     event.preventDefault();
-    if (!validateForm()) return;
+    console.info(`${UI_LOG_PREFIX} Submit payment triggered`);
+    if (!validateForm()) {
+        console.warn(`${UI_LOG_PREFIX} Submit payment aborted due to validation failure`);
+        return;
+    }
     const submit = elements.form.querySelector('[type="submit"]');
     submit.disabled = true;
     submit.querySelector(".button-text").hidden = true;
     submit.querySelector(".spinner").hidden = false;
     const data = new FormData(elements.form);
+    const idempotencyKey = ensureIdempotencyKey();
+    const requestSummary = {
+        sourceAccount: maskAccount(data.get("sourceAccount")?.trim()),
+        destinationAccount: maskAccount(data.get("destinationAccount")?.trim()),
+        amount: Number(data.get("amount")),
+        currency: data.get("currency"),
+        referenceLength: (data.get("reference")?.trim() || "").length,
+        idempotencyKey: maskToken(idempotencyKey)
+    };
+    console.info(`${UI_LOG_PREFIX} Payment submit request prepared`, requestSummary);
     try {
         const payment = await paymentApi.create({
             sourceAccount: data.get("sourceAccount").trim(),
@@ -126,28 +230,46 @@ async function submitPayment(event) {
             amount: Number(data.get("amount")),
             currency: data.get("currency"),
             reference: data.get("reference").trim() || null
-        }, data.get("idempotencyKey").trim());
+        }, idempotencyKey);
+        console.info(`${UI_LOG_PREFIX} Payment submit succeeded`, {
+            paymentId: payment.id,
+            status: payment.status,
+            idempotencyKey: maskToken(idempotencyKey)
+        });
         closeCreate();
         await loadPayments({ quiet: true });
         toast(`付款 ${payment.id} 已创建`);
         await openDetail(payment.id);
     } catch (error) {
+        console.error(`${UI_LOG_PREFIX} Payment submit failed`, {
+            code: error.code,
+            status: error.status,
+            message: error.message,
+            idempotencyKey: maskToken(idempotencyKey)
+        });
         toast(`${error.code ? `${error.code}：` : ""}${error.message}`, "error");
     } finally {
         submit.disabled = false;
         submit.querySelector(".button-text").hidden = false;
         submit.querySelector(".spinner").hidden = true;
+        console.info(`${UI_LOG_PREFIX} Payment submit UI state restored`);
     }
 }
 
 async function openDetail(id) {
     state.selectedId = id;
+    console.info(`${UI_LOG_PREFIX} Opening payment detail`, { paymentId: id });
     elements.drawerBackdrop.hidden = false;
     elements.drawer.setAttribute("aria-hidden", "false");
     elements.detailContent.innerHTML = '<div class="empty-state"><span class="spinner"></span><p>正在加载付款详情…</p></div>';
     requestAnimationFrame(() => elements.drawer.classList.add("open"));
     try {
         const [payment, history] = await Promise.all([paymentApi.get(id), paymentApi.history(id)]);
+        console.info(`${UI_LOG_PREFIX} Payment detail loaded`, {
+            paymentId: id,
+            status: payment.status,
+            historyCount: history.length
+        });
         elements.detailContent.innerHTML = `
             <div class="detail-amount"><small>付款金额</small><strong>${escapeHtml(formatMoney(payment.amount, payment.currency))}</strong></div>
             <div class="detail-grid">
@@ -163,6 +285,12 @@ async function openDetail(id) {
             <ol class="timeline">${history.map((item) => `<li><span class="timeline-dot"></span><div class="timeline-content"><strong>${escapeHtml(statusLabels[item.toStatus] || item.toStatus)}</strong><p>${escapeHtml(item.notes || `${item.fromStatus || "付款"} → ${item.toStatus}`)} · ${escapeHtml(item.triggeredBy || "SYSTEM")}</p><time>${escapeHtml(formatDate(item.changedAt))}</time></div></li>`).join("") || "<li><div class='timeline-content'><p>暂无历史记录</p></div></li>"}</ol>
             ${payment.status === "CREATED" ? '<button class="button button-primary drawer-action" type="button" data-action="process-payment">处理此付款</button>' : ""}`;
     } catch (error) {
+        console.error(`${UI_LOG_PREFIX} Failed to load payment detail`, {
+            paymentId: id,
+            code: error.code,
+            status: error.status,
+            message: error.message
+        });
         elements.detailContent.innerHTML = `<div class="error-banner"><strong>${escapeHtml(error.code || "LOAD_ERROR")}</strong><p>${escapeHtml(error.message)}</p></div>`;
     }
 }
@@ -174,13 +302,25 @@ function closeDetail() {
 
 async function processSelectedPayment() {
     const button = elements.detailContent.querySelector('[data-action="process-payment"]');
+    console.info(`${UI_LOG_PREFIX} Process payment triggered`, { paymentId: state.selectedId });
     button.disabled = true;
     button.textContent = "处理中…";
     try {
         const result = await paymentApi.process(state.selectedId);
+        console.info(`${UI_LOG_PREFIX} Process payment succeeded`, {
+            paymentId: state.selectedId,
+            currentStatus: result.currentStatus,
+            previousStatus: result.previousStatus
+        });
         toast(result.message || "付款处理完成");
         await Promise.all([loadPayments({ quiet: true }), openDetail(state.selectedId)]);
     } catch (error) {
+        console.error(`${UI_LOG_PREFIX} Process payment failed`, {
+            paymentId: state.selectedId,
+            code: error.code,
+            status: error.status,
+            message: error.message
+        });
         toast(`${error.code ? `${error.code}：` : ""}${error.message}`, "error");
         button.disabled = false;
         button.textContent = "处理此付款";
@@ -189,9 +329,9 @@ async function processSelectedPayment() {
 
 document.addEventListener("click", (event) => {
     const action = event.target.closest("[data-action]")?.dataset.action;
-    if (action === "open-create") openCreate();
-    if (action === "close-create") closeCreate();
-    if (action === "close-detail") closeDetail();
+    if (action === "open-create") { event.preventDefault(); openCreate(); }
+    if (action === "close-create") { event.preventDefault(); closeCreate(); }
+    if (action === "close-detail") { event.preventDefault(); closeDetail(); }
     if (action === "refresh") loadPayments();
     if (action === "process-payment") processSelectedPayment();
     if (action === "toggle-menu") document.querySelector(".sidebar").classList.toggle("open");
@@ -199,9 +339,30 @@ document.addEventListener("click", (event) => {
     if (paymentId) openDetail(paymentId);
 });
 
+window.addEventListener("error", (event) => {
+    console.error(`${UI_LOG_PREFIX} Unhandled browser error`, {
+        message: event.message,
+        source: event.filename,
+        line: event.lineno,
+        column: event.colno
+    });
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    console.error(`${UI_LOG_PREFIX} Unhandled promise rejection`, {
+        reason: event.reason?.message || String(event.reason)
+    });
+});
+
 elements.drawerBackdrop.addEventListener("click", closeDetail);
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeCreate(); });
+elements.form.addEventListener("submit", () => {
+    console.info(`${UI_LOG_PREFIX} Native form submit event captured`, {
+        idempotencyKey: maskToken(ensureIdempotencyKey())
+    });
+}, true);
 elements.form.addEventListener("submit", submitPayment);
+submitButton?.addEventListener("click", logSubmitButtonClick);
 elements.form.elements.reference.addEventListener("input", (event) => { event.target.closest("label").querySelector(".char-count").textContent = `${event.target.value.length} / 255`; });
 elements.search.addEventListener("input", renderPayments);
 elements.statusFilter.addEventListener("change", () => loadPayments({ quiet: true }));

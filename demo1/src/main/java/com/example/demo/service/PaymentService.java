@@ -23,6 +23,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("1000000.00");
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of("USD", "EUR", "GBP", "CNY");
@@ -64,24 +68,47 @@ public class PaymentService {
 
     @Transactional
     public CreatePaymentResult createPayment(CreatePaymentRequest request, String idempotencyKey) {
+        log.info("Starting create payment workflow: idempotencyKey={}, currency={}, amount={}",
+                maskToken(idempotencyKey),
+                request == null ? null : request.getCurrency(),
+                request == null ? null : request.getAmount());
+
         String normalizedKey = normalizeAndValidateIdempotencyKey(idempotencyKey);
         normalizeAndValidateCreateRequest(request);
 
+        log.info("Create payment request validated successfully: idempotencyKey={}, sourceAccount={}, destinationAccount={}, referenceLength={}",
+                maskToken(normalizedKey),
+                maskAccount(request.getSourceAccount()),
+                maskAccount(request.getDestinationAccount()),
+                request.getReference() == null ? 0 : request.getReference().length());
+
         IdempotencyDecision decision = checkIdempotency(normalizedKey, request);
         if (decision.isReplay()) {
+            log.info("Create payment request resolved as idempotent replay: idempotencyKey={}, paymentId={}",
+                    maskToken(normalizedKey),
+                    decision.getExistingPayment().getId());
             return new CreatePaymentResult(paymentMapper.toPaymentResponse(decision.getExistingPayment()), false);
         }
         if (decision.isConflict()) {
+            log.warn("Create payment request detected idempotency conflict: idempotencyKey={}", maskToken(normalizedKey));
             throw new IllegalStateException(PaymentErrorCode.DUPLICATE_PAYMENT.name());
         }
 
         Instant now = Instant.now(clock);
         Payment payment = paymentMapper.toEntity(request, normalizedKey, decision.getFingerprint(), now);
+        log.info("Persisting new payment: paymentId={}, idempotencyKey={}", payment.getId(), maskToken(normalizedKey));
         try {
             Payment saved = paymentRepository.save(payment);
             paymentHistoryService.recordCreation(saved, now);
+            log.info("Payment persisted successfully: paymentId={}, status={}, idempotencyKey={}",
+                    saved.getId(),
+                    saved.getStatus(),
+                    maskToken(normalizedKey));
             return new CreatePaymentResult(paymentMapper.toPaymentResponse(saved), true);
         } catch (DataIntegrityViolationException ex) {
+            log.warn("Concurrent create payment conflict detected while saving: idempotencyKey={}, message={}",
+                    maskToken(normalizedKey),
+                    ex.getMessage());
             return handleConcurrentDuplicate(normalizedKey, decision.getFingerprint(), ex);
         }
     }
@@ -291,11 +318,18 @@ public class PaymentService {
         String requestFingerprint = requestFingerprintGenerator.generate(request);
         Payment existing = paymentRepository.findByIdempotencyKey(normalizedKey).orElse(null);
         if (existing == null) {
+            log.debug("No existing payment found for idempotencyKey={}", maskToken(normalizedKey));
             return IdempotencyDecision.allowCreate(requestFingerprint);
         }
         if (requestFingerprint.equals(existing.getRequestFingerprint())) {
+            log.info("Existing payment fingerprint matched for idempotencyKey={}, paymentId={}",
+                    maskToken(normalizedKey),
+                    existing.getId());
             return IdempotencyDecision.replay(requestFingerprint, existing);
         }
+        log.warn("Existing payment fingerprint mismatch for idempotencyKey={}, existingPaymentId={}",
+                maskToken(normalizedKey),
+                existing.getId());
         return IdempotencyDecision.conflict(requestFingerprint, existing.getRequestFingerprint());
     }
 
@@ -304,14 +338,43 @@ public class PaymentService {
                                                           DataIntegrityViolationException ex) {
         Payment existing = paymentRepository.findByIdempotencyKey(normalizedKey).orElse(null);
         if (existing == null) {
+            log.error("Concurrent duplicate handler could not find existing payment after integrity violation: idempotencyKey={}",
+                    maskToken(normalizedKey),
+                    ex);
             throw ex;
         }
 
         if (currentFingerprint.equals(existing.getRequestFingerprint())) {
+            log.info("Concurrent duplicate resolved as replay: idempotencyKey={}, paymentId={}",
+                    maskToken(normalizedKey),
+                    existing.getId());
             return new CreatePaymentResult(paymentMapper.toPaymentResponse(existing), false);
         }
 
+        log.warn("Concurrent duplicate resolved as conflict: idempotencyKey={}, paymentId={}",
+                maskToken(normalizedKey),
+                existing.getId());
         throw new IllegalStateException(PaymentErrorCode.DUPLICATE_PAYMENT.name());
+    }
+
+    private String maskToken(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "<empty>";
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 10) {
+            return normalized.substring(0, Math.min(2, normalized.length())) + "***"
+                    + normalized.substring(Math.max(0, normalized.length() - 2));
+        }
+        return normalized.substring(0, 6) + "***" + normalized.substring(normalized.length() - 4);
+    }
+
+    private String maskAccount(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return "<empty>";
+        }
+        String normalized = value.trim();
+        return "***" + normalized.substring(Math.max(0, normalized.length() - 4));
     }
 
     private PaymentErrorCode extractErrorCode(RuntimeException ex) {
