@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>Midnight Pay</title>
+  <rect width="64" height="64" rx="12" fill="#20292f"/>
+  <path d="M14 16L34 32L14 48V16Z" fill="#db0011"/>
+  <path d="M50 16L30 32L50 48V16Z" fill="#db0011"/>
+</svg>
+

@@ -1,6 +1,9 @@
 package com.example.demo.exception;
 
 import com.example.demo.dto.response.ErrorResponse;
+import com.example.demo.enums.PaymentErrorCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -8,8 +11,11 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +53,17 @@ import java.util.stream.Collectors;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private static final Set<PaymentErrorCode> BAD_REQUEST_CODES = EnumSet.of(
+            PaymentErrorCode.INVALID_AMOUNT,
+            PaymentErrorCode.INVALID_CURRENCY,
+            PaymentErrorCode.INVALID_ACCOUNT,
+            PaymentErrorCode.SAME_SOURCE_AND_DESTINATION,
+            PaymentErrorCode.VALIDATION_FAILED,
+            PaymentErrorCode.INVALID_STATUS_TRANSITION
+    );
+
 
     /**
      * 处理业务异常
@@ -73,8 +90,11 @@ public class GlobalExceptionHandler {
         String path = request.getDescription(false).replace("uri=", "");
 
         // 日志记录：业务异常通常是预期的，不需要 ERROR 级别，info 即可
-        System.out.println("[INFO] Business exception occurred: errorCode=" + ex.getErrorCode() +
-                ", httpStatus=" + ex.getHttpStatus() + ", message=" + ex.getMessage());
+        log.info("Business exception handled: path={}, errorCode={}, httpStatus={}, message={}",
+                path,
+                ex.getErrorCode(),
+                ex.getHttpStatus(),
+                ex.getMessage());
 
         // 从异常构造标准错误响应
         ErrorResponse errorResponse = ErrorResponse.from(ex, path);
@@ -121,7 +141,7 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));  // 多个错误用分号分隔
 
         // 日志记录：DTO 校验失败是常见的客户端错误，info 级别
-        System.out.println("[INFO] Request validation failed: path=" + path + ", details=" + errorDetails);
+        log.info("Request validation failed: path={}, details={}", path, errorDetails);
 
         // 构造标准错误响应
         ErrorResponse errorResponse = ErrorResponse.builder()
@@ -158,7 +178,7 @@ public class GlobalExceptionHandler {
         String path = request.getDescription(false).replace("uri=", "");
 
         // 日志记录：缺少请求头通常是客户端配置问题
-        System.out.println("[WARN] Missing required request header: headerName=" + ex.getHeaderName() + ", path=" + path);
+        log.warn("Missing required request header: headerName={}, path={}", ex.getHeaderName(), path);
 
         // 构造标准错误响应
         ErrorResponse errorResponse = ErrorResponse.builder()
@@ -175,6 +195,52 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(errorResponse);
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    public ResponseEntity<ErrorResponse> handleKnownBusinessRuntimeException(
+            RuntimeException ex,
+            WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        PaymentErrorCode errorCode = resolvePaymentErrorCode(ex);
+        if (errorCode == null) {
+            throw ex;
+        }
+
+        HttpStatus status = mapStatus(errorCode);
+        log.info("Business runtime exception handled: path={}, errorCode={}, httpStatus={}, message={}",
+                path,
+                errorCode,
+                status.value(),
+                ex.getMessage());
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(Instant.now().toString())
+                .status(status.value())
+                .errorCode(errorCode.name())
+                .message(buildBusinessMessage(errorCode))
+                .path(path)
+                .build();
+
+        return ResponseEntity.status(status).body(errorResponse);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            NoResourceFoundException ex,
+            WebRequest request) {
+        String path = request.getDescription(false).replace("uri=", "");
+        log.debug("Static resource not found: path={}, resourceMessage={}", path, ex.getMessage());
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(Instant.now().toString())
+                .status(HttpStatus.NOT_FOUND.value())
+                .errorCode(PaymentErrorCode.PAYMENT_NOT_FOUND.name())
+                .message("Requested resource was not found")
+                .path(path)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
     }
 
     /**
@@ -204,8 +270,11 @@ public class GlobalExceptionHandler {
         String path = request.getDescription(false).replace("uri=", "");
 
         // 关键：ERROR 级别记录，记录完整堆栈，便于开发者或运维排查
-        System.err.println("[ERROR] Unexpected exception occurred: path=" + path + ", exception=" + ex.getClass().getName());
-        ex.printStackTrace(System.err);
+        log.error("Unexpected exception occurred: path={}, exceptionType={}, message={}",
+                path,
+                ex.getClass().getName(),
+                ex.getMessage(),
+                ex);
 
         // 构造通用错误响应：不向客户端暴露内部堆栈或技术细节
         ErrorResponse errorResponse = ErrorResponse.builder()
@@ -219,6 +288,49 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(errorResponse);
+    }
+
+    private PaymentErrorCode resolvePaymentErrorCode(RuntimeException ex) {
+        if (ex == null || ex.getMessage() == null) {
+            return null;
+        }
+
+        try {
+            return PaymentErrorCode.valueOf(ex.getMessage().trim());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private HttpStatus mapStatus(PaymentErrorCode errorCode) {
+        if (errorCode == PaymentErrorCode.DUPLICATE_PAYMENT) {
+            return HttpStatus.CONFLICT;
+        }
+        if (errorCode == PaymentErrorCode.PAYMENT_NOT_FOUND) {
+            return HttpStatus.NOT_FOUND;
+        }
+        if (BAD_REQUEST_CODES.contains(errorCode)) {
+            return HttpStatus.BAD_REQUEST;
+        }
+        if (errorCode == PaymentErrorCode.NETWORK_ERROR) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    private String buildBusinessMessage(PaymentErrorCode errorCode) {
+        return switch (errorCode) {
+            case INVALID_AMOUNT -> "Payment amount is invalid";
+            case INVALID_CURRENCY -> "Payment currency is invalid";
+            case INVALID_ACCOUNT -> "Payment account is invalid";
+            case SAME_SOURCE_AND_DESTINATION -> "Source and destination accounts must be different";
+            case DUPLICATE_PAYMENT -> "Duplicate payment request with same idempotency key but different content";
+            case INVALID_STATUS_TRANSITION -> "Payment status transition is not allowed";
+            case PAYMENT_NOT_FOUND -> "Payment was not found";
+            case VALIDATION_FAILED -> "Request validation failed";
+            case NETWORK_ERROR -> "Temporary network error occurred while processing payment";
+            case PROCESSING_ERROR -> "Payment processing failed";
+        };
     }
 }
 
