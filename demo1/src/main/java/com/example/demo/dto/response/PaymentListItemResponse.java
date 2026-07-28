@@ -1,6 +1,5 @@
 package com.example.demo.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.math.BigDecimal;
 
 /**
@@ -12,9 +11,8 @@ import java.math.BigDecimal;
  * <p><b>Excluded Fields:</b> sourceAccount, destinationAccount, reference, errorMessage.
  * List items show key identifiers and status; detailed error reasons are available via GET /api/payments/{id}.</p>
  *
- * <p><b>Fields:</b> id, amount, currency, status, createdAt, errorCode (when FAILED).</p>
+ * <p><b>Fields:</b> id, amount, currency, status, createdAt, errorCode (nullable for non-FAILED records).</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PaymentListItemResponse {
 
     private String id;
