@@ -1,8 +1,6 @@
 package com.example.demo.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import java.math.BigDecimal;
-import java.time.Instant;
 
 /**
  * DTO for payment detail response.
@@ -12,10 +10,9 @@ import java.time.Instant;
  *
  * <p><b>Fields:</b> All payment business fields plus timestamps and optional error details.</p>
  *
- * <p><b>JSON Serialization:</b> errorCode and errorMessage are included only when payment is in FAILED state
- * (controlled by @JsonInclude(JsonInclude.Include.NON_NULL)).</p>
+ * <p><b>JSON Serialization:</b> nullable fields (reference, errorCode, errorMessage) are kept in the response
+ * contract and may be null depending on payment state.</p>
  */
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PaymentResponse {
 
     private String id;
