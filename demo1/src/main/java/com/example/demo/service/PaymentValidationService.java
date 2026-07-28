@@ -1,15 +1,13 @@
 package com.example.demo.service;
 
+import com.example.demo.config.PaymentProperties;
 import com.example.demo.dto.request.CreatePaymentRequest;
 import com.example.demo.entity.Payment;
 import com.example.demo.enums.PaymentErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -31,23 +29,6 @@ import java.util.regex.Pattern;
 public class PaymentValidationService {
 
     /**
-     * 默认最大付款金额。
-     *
-     * <p>根据设计文档，第一轮迭代默认上限为 1,000,000.00。</p>
-     */
-    private static final BigDecimal DEFAULT_MAX_AMOUNT = new BigDecimal("1000000.00");
-
-    /**
-     * 默认最大金额文本，供 Spring @Value 注解引用。
-     */
-    private static final String DEFAULT_MAX_AMOUNT_TEXT = "1000000.00";
-
-    /**
-     * 默认支持币种文本，供 Spring @Value 注解引用。
-     */
-    private static final String DEFAULT_SUPPORTED_CURRENCIES_TEXT = "USD,EUR,GBP,CNY";
-
-    /**
      * 最大允许金额。
      */
     private final BigDecimal maxAmount;
@@ -63,21 +44,35 @@ public class PaymentValidationService {
     private final Pattern accountPattern;
 
     /**
-     * Spring 注入构造器。
+     * 底层配置对象（用于复用标准化逻辑）。
+     */
+    private final PaymentProperties.Validation validationProperties;
+
+    /**
+     * Spring 注入构造器（从 PaymentProperties 读取规则）。
      *
-     * <p>中文说明：如果配置项不存在，则使用文档给出的默认值，保证项目在未补齐
-     * 配置文件时依然可以启动和测试。</p>
+     * <p>中文说明：业务规则统一由 {@link PaymentProperties} 提供，避免魔法值分散在服务层。</p>
      *
-     * @param maxAmountText 最大金额配置，默认 1000000.00
-     * @param supportedCurrenciesText 支持币种配置，逗号分隔，例如 USD,EUR,GBP,CNY
-     * @param accountPatternText 账户格式正则
+     * @param paymentProperties 付款配置属性
      */
     @Autowired
-    public PaymentValidationService(
-            @Value("${payment.validation.max-amount:" + DEFAULT_MAX_AMOUNT_TEXT + "}") String maxAmountText,
-            @Value("${payment.validation.supported-currencies:" + DEFAULT_SUPPORTED_CURRENCIES_TEXT + "}") String supportedCurrenciesText,
-            @Value("${payment.validation.account-pattern:^[A-Za-z0-9]{3,50}$}") String accountPatternText) {
-        this(parseAmount(maxAmountText), parseSupportedCurrencies(supportedCurrenciesText), Pattern.compile(accountPatternText));
+    public PaymentValidationService(PaymentProperties paymentProperties) {
+        Objects.requireNonNull(paymentProperties, "paymentProperties must not be null");
+        PaymentProperties.Validation cfg = Objects.requireNonNull(
+                paymentProperties.getValidation(),
+                "paymentProperties.validation must not be null"
+        );
+
+        this.validationProperties = cfg;
+        this.maxAmount = Objects.requireNonNull(cfg.getMaxAmount(), "payment.validation.max-amount must not be null");
+        this.supportedCurrencies = Set.copyOf(Objects.requireNonNull(
+                cfg.getSupportedCurrencies(),
+                "payment.validation.supported-currencies must not be null"
+        ));
+        this.accountPattern = Pattern.compile(Objects.requireNonNull(
+                cfg.getAccountPattern(),
+                "payment.validation.account-pattern must not be null"
+        ));
     }
 
     /**
@@ -85,15 +80,19 @@ public class PaymentValidationService {
      *
      * <p>中文说明：单元测试可以直接传入固定配置，避免依赖 Spring 容器。</p>
      *
-     * @param maxAmount 最大金额
-     * @param supportedCurrencies 支持币种集合
-     * @param accountPattern 账户格式正则
+     * @param validationProperties 校验配置
      */
-    PaymentValidationService(BigDecimal maxAmount, Set<String> supportedCurrencies, Pattern accountPattern) {
-        this.maxAmount = Objects.requireNonNull(maxAmount, "maxAmount must not be null");
-        this.supportedCurrencies = Collections.unmodifiableSet(new LinkedHashSet<>(Objects.requireNonNull(supportedCurrencies, "supportedCurrencies must not be null")));
-        String patternText = accountPattern == null ? "^[A-Za-z0-9]{3,50}$" : accountPattern.pattern();
-        this.accountPattern = Pattern.compile(patternText);
+    PaymentValidationService(PaymentProperties.Validation validationProperties) {
+        this.validationProperties = Objects.requireNonNull(validationProperties, "validationProperties must not be null");
+        this.maxAmount = Objects.requireNonNull(validationProperties.getMaxAmount(), "maxAmount must not be null");
+        this.supportedCurrencies = Set.copyOf(Objects.requireNonNull(
+                validationProperties.getSupportedCurrencies(),
+                "supportedCurrencies must not be null"
+        ));
+        this.accountPattern = Pattern.compile(Objects.requireNonNull(
+                validationProperties.getAccountPattern(),
+                "accountPattern must not be null"
+        ));
     }
 
     /**
@@ -245,10 +244,7 @@ public class PaymentValidationService {
      * @return 去空格并转大写后的币种；若入参为 null，则返回空字符串以便上层统一报错
      */
     public String normalizeCurrency(String currency) {
-        if (currency == null) {
-            return "";
-        }
-        return currency.trim().toUpperCase();
+        return validationProperties.normalizeCurrency(currency);
     }
 
     /**
@@ -258,53 +254,7 @@ public class PaymentValidationService {
      * @return 去除首尾空格后的账户；若为 null，则返回空字符串
      */
     private String normalizeAccount(String account) {
-        if (account == null) {
-            return "";
-        }
-        return account.trim();
-    }
-
-    /**
-     * 解析金额配置。
-     *
-     * @param amountText 金额文本
-     * @return BigDecimal 金额
-     */
-    private static BigDecimal parseAmount(String amountText) {
-        if (amountText == null || amountText.trim().isEmpty()) {
-            return DEFAULT_MAX_AMOUNT;
-        }
-        return new BigDecimal(amountText.trim());
-    }
-
-    /**
-     * 解析支持币种集合。
-     *
-     * <p>中文说明：配置值以英文逗号分隔，解析后统一转大写并去重。</p>
-     *
-     * @param supportedCurrenciesText 配置文本
-     * @return 支持币种集合
-     */
-    private static Set<String> parseSupportedCurrencies(String supportedCurrenciesText) {
-        String raw = (supportedCurrenciesText == null || supportedCurrenciesText.trim().isEmpty())
-                ? DEFAULT_SUPPORTED_CURRENCIES_TEXT
-                : supportedCurrenciesText;
-
-        Set<String> currencies = new LinkedHashSet<>();
-        for (String item : raw.split(",")) {
-            String normalized = item.trim().toUpperCase();
-            if (!normalized.isEmpty()) {
-                currencies.add(normalized);
-            }
-        }
-
-        if (currencies.isEmpty()) {
-            for (String item : DEFAULT_SUPPORTED_CURRENCIES_TEXT.split(",")) {
-                currencies.add(item.trim().toUpperCase());
-            }
-        }
-
-        return currencies;
+        return validationProperties.normalizeAccount(account);
     }
 
     /**
