@@ -6,7 +6,7 @@
     <meta name="description" content="Midnight Pay 企业付款处理工作台">
     <title>Midnight Pay · 付款处理工作台</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/styles.css?v=20260728-3">
 </head>
 <body>
     <div class="app-shell">
@@ -108,9 +108,91 @@
                     <div class="panel-foot"><span id="resultCount">共 0 笔付款</span><span>数据按创建时间倒序展示</span></div>
                 </section>
 
+                <section class="panel state-console" id="stateConsole">
+                    <div class="panel-head">
+                        <div>
+                            <h2>状态管理控制台</h2>
+                            <p>前端严格映射后端状态机规则，仅暴露合法操作并实时呈现状态演进。</p>
+                        </div>
+                        <div class="state-toolbar">
+                            <span class="state-pill" id="selectedPaymentPill">未选择付款</span>
+                            <button class="button button-ghost" type="button" id="refreshSelectedButton" data-action="refresh-selected" disabled>刷新所选付款</button>
+                        </div>
+                    </div>
+                    <div class="state-layout">
+                        <div class="state-overview-card" id="stateOverview"></div>
+                        <div class="state-visual-card">
+                            <div class="state-section-head">
+                                <div>
+                                    <p class="eyebrow">STATE MACHINE</p>
+                                    <h3>付款生命周期轨迹</h3>
+                                </div>
+                                <p id="lifecycleCaption">选择一笔付款后查看状态演进、合法下一状态与控制动作。</p>
+                            </div>
+                            <ol class="lifecycle-track" id="lifecycleTrack"></ol>
+                            <div class="failure-rail" id="failureRail"></div>
+                        </div>
+                    </div>
+                    <div class="state-grid">
+                        <section class="rule-card">
+                            <div class="rule-card-head">
+                                <div>
+                                    <p class="eyebrow">NEXT STATES</p>
+                                    <h3>允许的下一状态</h3>
+                                </div>
+                                <span class="terminal-badge" id="terminalBadge">等待选择</span>
+                            </div>
+                            <div id="allowedTransitions"></div>
+                        </section>
+                        <section class="rule-card">
+                            <div class="rule-card-head">
+                                <div>
+                                    <p class="eyebrow">CONTROLS</p>
+                                    <h3>状态控制动作</h3>
+                                </div>
+                                <span class="rule-caption">仅展示合法操作</span>
+                            </div>
+                            <div id="stateActions"></div>
+                        </section>
+                        <section class="rule-card rule-card-wide">
+                            <div class="rule-card-head">
+                                <div>
+                                    <p class="eyebrow">RULE MATRIX</p>
+                                    <h3>状态机规则矩阵</h3>
+                                </div>
+                                <span class="rule-caption">与后端 `PaymentStateMachine` 对齐</span>
+                            </div>
+                            <div id="stateRuleMatrix"></div>
+                        </section>
+                    </div>
+                </section>
+
+                <section class="panel audit-panel" id="audit">
+                    <div class="panel-head">
+                        <div>
+                            <h2>审计记录预览</h2>
+                            <p>选中付款后，展示最新状态变更、触发方与失败原因。</p>
+                        </div>
+                        <span class="audit-pill" id="auditSelectionLabel">未选择付款</span>
+                    </div>
+                    <div class="audit-preview" id="auditPreview"></div>
+                </section>
+
                 <section class="flow-strip" aria-label="付款生命周期">
-                    <div><p class="eyebrow">LIFECYCLE</p><h2>每一步，都清晰可追溯</h2></div>
-                    <ol><li><b>01</b><span><strong>创建</strong><small>CREATED</small></span></li><li><b>02</b><span><strong>校验</strong><small>VALIDATED</small></span></li><li><b>03</b><span><strong>发送</strong><small>SENT</small></span></li><li><b>04</b><span><strong>完成</strong><small>COMPLETED</small></span></li></ol>
+                    <div class="flow-strip-copy">
+                        <p class="eyebrow">LIFECYCLE</p>
+                        <h2>每一步，都清晰可追溯</h2>
+                        <p id="flowStripHint">后端状态机定义了合法流转路径，前端仅展示并驱动这些规则允许的动作。</p>
+                    </div>
+                    <ol id="globalLifecycleTrack">
+                        <li data-status="CREATED"><b>01</b><span><strong>创建</strong><small>CREATED</small></span></li>
+                        <li data-status="VALIDATED"><b>02</b><span><strong>校验</strong><small>VALIDATED</small></span></li>
+                        <li data-status="SENT"><b>03</b><span><strong>发送</strong><small>SENT</small></span></li>
+                        <li data-status="COMPLETED"><b>04</b><span><strong>完成</strong><small>COMPLETED</small></span></li>
+                    </ol>
+                    <div class="flow-strip-side">
+                        <span class="flow-terminal-pill">失败分支：CREATED / VALIDATED / SENT</span>
+                    </div>
                 </section>
             </div>
         </main>
@@ -139,6 +221,6 @@
     </div>
 
     <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-    <script type="module" src="/js/app.js"></script>
+    <script type="module" src="/js/app.js?v=20260728-3"></script>
 </body>
 </html>
