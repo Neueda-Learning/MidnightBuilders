@@ -213,4 +213,3 @@ paymentLifecycleService.markFailed(...)
 - 调用 `/process`；
 - 处理前校验失败；
 - 状态机允许 `CREATED -> FAILED`。
-
