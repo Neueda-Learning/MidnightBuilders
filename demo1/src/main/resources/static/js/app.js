@@ -1,4 +1,5 @@
 import { paymentApi } from "./api.js?v=20260728-3";
+import { getLanguage, initializeI18n } from "./i18n.js?v=20260730-1";
 
 const UI_LOG_PREFIX = "[PaymentUI]";
 const PAYMENT_FLOW = ["CREATED", "VALIDATED", "SENT", "COMPLETED"];
@@ -103,7 +104,33 @@ function formatMoney(amount, currency = "CNY") {
 function formatDate(value) {
     if (!value) return "—";
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+    const locale = getLanguage() === "en" ? "en-GB" : "zh-CN";
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(locale, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
+const VIEW_LABELS = {
+    dashboard: "工作台",
+    payments: "付款管理",
+    audit: "审计记录"
+};
+
+function activateView(view, { scroll = true } = {}) {
+    const normalizedView = VIEW_LABELS[view] ? view : "dashboard";
+    document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
+        item.classList.toggle("active", item.dataset.view === normalizedView);
+    });
+
+    const breadcrumb = document.querySelector("#pageBreadcrumb");
+    if (breadcrumb) breadcrumb.textContent = VIEW_LABELS[normalizedView];
+
+    if (scroll) {
+        const target = normalizedView === "dashboard"
+            ? document.querySelector(".page-heading")
+            : document.querySelector(`#${normalizedView}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    document.querySelector(".sidebar")?.classList.remove("open");
 }
 
 function toast(message, type = "success") {
@@ -742,6 +769,13 @@ async function processSelectedPayment() {
 }
 
 document.addEventListener("click", (event) => {
+    const navigationItem = event.target.closest(".nav-item[data-view]");
+    if (navigationItem) {
+        event.preventDefault();
+        const view = navigationItem.dataset.view;
+        history.replaceState(null, "", `#${view}`);
+        activateView(view);
+    }
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (action === "open-create") { event.preventDefault(); openCreate(); }
     if (action === "close-create") { event.preventDefault(); closeCreate(); }
@@ -785,7 +819,14 @@ elements.form.elements.reference.addEventListener("input", (event) => { event.ta
 elements.search.addEventListener("input", renderPayments);
 elements.statusFilter.addEventListener("change", () => loadPayments({ quiet: true }));
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") { if (!elements.modal.hidden) closeCreate(); else closeDetail(); } });
+window.addEventListener("languagechange", () => {
+    renderPayments();
+    renderStateConsole();
+    renderAuditPreview();
+});
 
+initializeI18n();
+activateView(window.location.hash.replace("#", ""), { scroll: false });
 renderRuleMatrix();
 renderStateConsole();
 loadPayments({ quiet: true });
