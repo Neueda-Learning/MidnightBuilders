@@ -35,6 +35,13 @@ public enum PaymentErrorCode {
     INVALID_ACCOUNT,
 
     /**
+     * Source/payer account does not exist in local account master data.
+     * Triggered when: sourceAccount passes format validation but is not found in accounts table.
+     * HTTP Status: 400
+     */
+    ACCOUNT_NOT_FOUND,
+
+    /**
      * Source and destination accounts are identical after normalization.
      * Triggered when: normalized sourceAccount == normalized destinationAccount.
      * HTTP Status: 400

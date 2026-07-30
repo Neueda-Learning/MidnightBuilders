@@ -45,6 +45,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentHistoryService paymentHistoryService;
     private final PaymentLifecycleService paymentLifecycleService;
+    private final AccountValidationService accountValidationService;
     private final PaymentProcessingSimulator paymentProcessingSimulator;
     private final PaymentMapper paymentMapper;
     private final RequestFingerprintGenerator requestFingerprintGenerator;
@@ -53,6 +54,7 @@ public class PaymentService {
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentHistoryService paymentHistoryService,
                           PaymentLifecycleService paymentLifecycleService,
+                          AccountValidationService accountValidationService,
                           PaymentProcessingSimulator paymentProcessingSimulator,
                           PaymentMapper paymentMapper,
                           RequestFingerprintGenerator requestFingerprintGenerator,
@@ -60,6 +62,7 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
         this.paymentHistoryService = paymentHistoryService;
         this.paymentLifecycleService = paymentLifecycleService;
+        this.accountValidationService = accountValidationService;
         this.paymentProcessingSimulator = paymentProcessingSimulator;
         this.paymentMapper = paymentMapper;
         this.requestFingerprintGenerator = requestFingerprintGenerator;
@@ -157,6 +160,18 @@ public class PaymentService {
 
         try {
             current = paymentLifecycleService.markValidated(current);
+
+            try {
+                accountValidationService.validatePayerAccount(current);
+            } catch (RuntimeException ex) {
+                Payment failed = paymentLifecycleService.markFailed(
+                        current,
+                        extractErrorCode(ex),
+                        extractErrorDetail(ex),
+                        "Payer account validation failed"
+                );
+                return toFailedResponse(failed, previousStatus);
+            }
 
             ProcessingResult sendResult = paymentProcessingSimulator.sendPayment(current);
             if (!sendResult.isSuccess()) {
@@ -382,11 +397,28 @@ public class PaymentService {
             return PaymentErrorCode.VALIDATION_FAILED;
         }
 
+        String message = ex.getMessage().trim();
+        String candidate = message.contains(":") ? message.substring(0, message.indexOf(':')).trim() : message;
+
         try {
-            return PaymentErrorCode.valueOf(ex.getMessage().trim());
+            return PaymentErrorCode.valueOf(candidate);
         } catch (IllegalArgumentException ignored) {
             return PaymentErrorCode.VALIDATION_FAILED;
         }
+    }
+
+    private String extractErrorDetail(RuntimeException ex) {
+        if (ex == null || ex.getMessage() == null || ex.getMessage().trim().isEmpty()) {
+            return "Source account does not exist";
+        }
+
+        String message = ex.getMessage().trim();
+        if (!message.contains(":")) {
+            return message;
+        }
+
+        String detail = message.substring(message.indexOf(':') + 1).trim();
+        return detail.isEmpty() ? "Source account does not exist" : detail;
     }
 
     private ProcessPaymentResponse toFailedResponse(Payment failed, PaymentStatus previousStatus) {

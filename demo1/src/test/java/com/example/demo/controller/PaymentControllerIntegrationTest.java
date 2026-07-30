@@ -5,6 +5,8 @@ import com.example.demo.dto.response.PaymentHistoryResponse;
 import com.example.demo.dto.response.PaymentListItemResponse;
 import com.example.demo.dto.response.PaymentResponse;
 import com.example.demo.dto.response.ProcessPaymentResponse;
+import com.example.demo.entity.Account;
+import com.example.demo.repository.AccountRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +34,9 @@ class PaymentControllerIntegrationTest {
     @Autowired
     private PaymentController paymentController;
 
+    @Autowired
+    private AccountRepository accountRepository;
+
     private CreatePaymentRequest validRequest() {
         return new CreatePaymentRequest(
                 "ACC-SOURCE-01",
@@ -41,8 +47,31 @@ class PaymentControllerIntegrationTest {
         );
     }
 
+    private CreatePaymentRequest missingPayerAccountRequest() {
+        return new CreatePaymentRequest(
+                "ACC-NOT-FOUND-01",
+                "ACC-DEST-02",
+                new BigDecimal("100.00"),
+                "USD",
+                "controller missing payer account test"
+        );
+    }
+
+    private void ensurePayerAccountExists(String accountNumber) {
+        accountRepository.findByAccountNumber(accountNumber).orElseGet(() ->
+                accountRepository.save(new Account(
+                        UUID.randomUUID().toString(),
+                        accountNumber,
+                        "Controller Test Payer Account",
+                        Instant.now(),
+                        Instant.now()
+                ))
+        );
+    }
+
     @Test
     void createPayment_firstTime_shouldReturn201AndLocationHeader() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         String key = UUID.randomUUID().toString();
 
         ResponseEntity<PaymentResponse> response = paymentController.createPayment(validRequest(), key);
@@ -55,6 +84,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void createPayment_replay_shouldReturn200WithSamePaymentId() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         String key = UUID.randomUUID().toString();
 
         ResponseEntity<PaymentResponse> first = paymentController.createPayment(validRequest(), key);
@@ -69,6 +99,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void getPayment_existingId_shouldReturn200() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         String key = UUID.randomUUID().toString();
         ResponseEntity<PaymentResponse> created = paymentController.createPayment(validRequest(), key);
 
@@ -85,6 +116,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void listPayments_noFilter_shouldReturnArray() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         paymentController.createPayment(validRequest(), UUID.randomUUID().toString());
 
         ResponseEntity<List<PaymentListItemResponse>> response = paymentController.listPayments(null);
@@ -96,6 +128,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void listPayments_filterByCreated_shouldReturnOnlyCreated() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         paymentController.createPayment(validRequest(), UUID.randomUUID().toString());
 
         ResponseEntity<List<PaymentListItemResponse>> response = paymentController.listPayments("CREATED");
@@ -108,6 +141,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void processPayment_success_shouldReturnCompleted() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         ResponseEntity<PaymentResponse> created = paymentController.createPayment(validRequest(), UUID.randomUUID().toString());
         assertNotNull(created.getBody());
 
@@ -122,6 +156,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void getHistory_afterProcess_shouldReturnFourEntriesInOrder() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         ResponseEntity<PaymentResponse> created = paymentController.createPayment(validRequest(), UUID.randomUUID().toString());
         assertNotNull(created.getBody());
 
@@ -141,6 +176,7 @@ class PaymentControllerIntegrationTest {
 
     @Test
     void endToEnd_create_process_detail_history_shouldBeConsistent() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         String key = UUID.randomUUID().toString();
 
         ResponseEntity<PaymentResponse> created = paymentController.createPayment(validRequest(), key);
@@ -158,5 +194,32 @@ class PaymentControllerIntegrationTest {
         assertEquals("COMPLETED", processed.getBody().getCurrentStatus());
         assertEquals("COMPLETED", detail.getBody().getStatus());
         assertEquals(4, history.getBody().size());
+    }
+
+    @Test
+    void processPayment_missingPayerAccount_shouldReturnFailedBusinessResult() {
+        ResponseEntity<PaymentResponse> created = paymentController.createPayment(
+                missingPayerAccountRequest(),
+                UUID.randomUUID().toString()
+        );
+        assertNotNull(created.getBody());
+
+        String paymentId = created.getBody().getId();
+        ResponseEntity<ProcessPaymentResponse> processed = paymentController.processPayment(paymentId);
+        ResponseEntity<List<PaymentHistoryResponse>> history = paymentController.getPaymentHistory(paymentId);
+
+        assertEquals(HttpStatus.OK, processed.getStatusCode());
+        assertNotNull(processed.getBody());
+        assertEquals("CREATED", processed.getBody().getPreviousStatus());
+        assertEquals("FAILED", processed.getBody().getCurrentStatus());
+        assertEquals("ACCOUNT_NOT_FOUND", processed.getBody().getErrorCode());
+        assertEquals("Source account does not exist", processed.getBody().getErrorMessage());
+
+        assertNotNull(history.getBody());
+        assertEquals(3, history.getBody().size());
+        assertEquals("CREATED", history.getBody().get(0).getToStatus());
+        assertEquals("VALIDATED", history.getBody().get(1).getToStatus());
+        assertEquals("FAILED", history.getBody().get(2).getToStatus());
+        assertEquals("ACCOUNT_NOT_FOUND", history.getBody().get(2).getErrorCode());
     }
 }

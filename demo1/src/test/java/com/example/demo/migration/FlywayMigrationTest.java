@@ -25,11 +25,21 @@ class FlywayMigrationTest {
                 .load();
 
         int executed = flyway.migrate().migrationsExecuted;
-        assertEquals(2, executed, "Flyway should execute V1 and V2 migrations");
+        assertEquals(4, executed, "Flyway should execute V1 through V4 migrations");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
             assertTrue(tableExists(connection, "PAYMENTS"));
             assertTrue(tableExists(connection, "PAYMENT_STATUS_HISTORY"));
+            assertTrue(tableExists(connection, "ACCOUNTS"));
+
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM accounts WHERE account_number = ?")) {
+                ps.setString(1, "ACC-SOURCE-01");
+                try (ResultSet rs = ps.executeQuery()) {
+                    rs.next();
+                    assertEquals(1, rs.getInt(1), "Expected seeded payer account ACC-SOURCE-01");
+                }
+            }
 
             insertPayment(connection, "pay-1", "idem-1");
             insertHistory(connection, "his-1", "pay-1");
