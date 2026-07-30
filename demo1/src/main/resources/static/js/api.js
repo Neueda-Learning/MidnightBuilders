@@ -1,3 +1,5 @@
+import { localize } from "./i18n.js?v=20260730-1";
+
 const API_BASE = "/api/payments";
 
 const API_LOG_PREFIX = "[PaymentAPI]";
@@ -53,7 +55,7 @@ async function request(path = "", options = {}) {
             durationMs: Math.round(performance.now() - startedAt),
             message: error?.message
         });
-        throw error;
+        throw new Error(localize("网络请求失败，请稍后重试", "Network request failed. Please try again."), { cause: error });
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -69,7 +71,11 @@ async function request(path = "", options = {}) {
             errorCode: payload?.errorCode,
             message: payload?.message || payload?.errorMessage
         });
-        const error = new Error(payload?.message || payload?.errorMessage || `请求失败（${response.status}）`);
+        const error = new Error(
+            payload?.message
+            || payload?.errorMessage
+            || localize(`请求失败（${response.status}）`, `Request failed (${response.status})`)
+        );
         error.code = payload?.errorCode;
         error.status = response.status;
         throw error;
