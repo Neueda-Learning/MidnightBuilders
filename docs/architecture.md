@@ -1,5 +1,7 @@
 # Payment Processing System - Architecture Design
 
+> Iteration 2 更新：系统增加 Account 主数据校验、网络延迟模拟与重试编排。
+
 ## 1. 文档说明
 
 本文档描述 Payment Processing System 的系统架构设计。
@@ -62,12 +64,21 @@ flowchart TD
 
     Simulator[Internal Payment Processing Simulator]
 
+    AccountValidation[Account Validation Service]
+    AccountRepository[Account Repository]
+    Retry[Network Retry Service]
+
     User --> Controller
     Controller --> Service
 
     Service --> Validation
     Service --> StateMachine
     Service --> Simulator
+    Service --> AccountValidation
+    AccountValidation --> AccountRepository
+    AccountRepository --> Database
+    Service --> Retry
+    Retry --> Simulator
     Service --> HistoryService
     Service --> Repository
 

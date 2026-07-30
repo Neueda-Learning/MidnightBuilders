@@ -56,6 +56,10 @@ public class PaymentProperties {
     @NotNull
     private Idempotency idempotency = new Idempotency();
 
+    @Valid
+    @NotNull
+    private Simulation simulation = new Simulation();
+
     /**
      * 获取校验配置。
      *
@@ -92,6 +96,14 @@ public class PaymentProperties {
         this.idempotency = idempotency;
     }
 
+    public Simulation getSimulation() {
+        return simulation;
+    }
+
+    public void setSimulation(Simulation simulation) {
+        this.simulation = simulation;
+    }
+
     /**
      * 业务校验规则配置分组。
      */
@@ -123,7 +135,7 @@ public class PaymentProperties {
          * <p>默认：3~50 位字母数字。若后续需求明确更严格格式，可直接在配置中替换。</p>
          */
         @NotBlank
-        private String accountPattern = "^[A-Za-z0-9]{3,50}$";
+        private String accountPattern = "^[A-Za-z0-9-]{3,50}$";
 
         /**
          * 账户最小长度（用于快速边界判断，正则仍是最终格式规则）。
@@ -239,5 +251,52 @@ public class PaymentProperties {
             return key.trim();
         }
     }
-}
 
+    @Validated
+    public static class Simulation {
+
+        @Min(0)
+        private int minDelaySeconds = 0;
+
+        @Min(0)
+        private int maxDelaySeconds = 20;
+
+        @Min(0)
+        private int timeoutSeconds = 10;
+
+        @Min(0)
+        private int maxRetries = 3;
+
+        public int getMinDelaySeconds() {
+            return minDelaySeconds;
+        }
+
+        public void setMinDelaySeconds(int minDelaySeconds) {
+            this.minDelaySeconds = minDelaySeconds;
+        }
+
+        public int getMaxDelaySeconds() {
+            return maxDelaySeconds;
+        }
+
+        public void setMaxDelaySeconds(int maxDelaySeconds) {
+            this.maxDelaySeconds = maxDelaySeconds;
+        }
+
+        public int getTimeoutSeconds() {
+            return timeoutSeconds;
+        }
+
+        public void setTimeoutSeconds(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+    }
+}

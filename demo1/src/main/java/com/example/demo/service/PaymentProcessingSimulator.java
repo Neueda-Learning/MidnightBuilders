@@ -1,6 +1,8 @@
 package com.example.demo.service;
 
 import com.example.demo.dto.internal.ProcessingResult;
+import com.example.demo.dto.internal.ProcessingAttempt;
+import com.example.demo.config.PaymentProperties;
 import com.example.demo.entity.Payment;
 import com.example.demo.enums.PaymentErrorCode;
 import com.example.demo.enums.PaymentStatus;
@@ -12,6 +14,9 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.Objects;
+import java.util.random.RandomGenerator;
+
+import com.example.demo.time.DelaySleeper;
 
 /**
  * Simulates external payment processing interactions for iteration-1.
@@ -35,6 +40,21 @@ import java.util.Objects;
 public class PaymentProcessingSimulator {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentProcessingSimulator.class);
+
+    private final PaymentProperties.Simulation simulation;
+    private final RandomGenerator randomGenerator;
+    private final DelaySleeper delaySleeper;
+
+    public PaymentProcessingSimulator(PaymentProperties paymentProperties,
+                                      RandomGenerator randomGenerator,
+                                      DelaySleeper delaySleeper) {
+        this.simulation = Objects.requireNonNull(paymentProperties.getSimulation(), "simulation must not be null");
+        this.randomGenerator = randomGenerator;
+        this.delaySleeper = delaySleeper;
+        if (simulation.getMaxDelaySeconds() < simulation.getMinDelaySeconds()) {
+            throw new IllegalArgumentException("max delay must be greater than or equal to min delay");
+        }
+    }
 
     /**
      * Simulate sending a payment to an external target system.
@@ -61,6 +81,28 @@ public class PaymentProcessingSimulator {
      */
     public ProcessingResult confirmPayment(Payment payment) {
         return simulateStep("confirm", payment, PaymentStatus.SENT);
+    }
+
+    /** Execute one timed confirmation attempt. Retry orchestration belongs to NetworkRetryService. */
+    public ProcessingAttempt attemptConfirmation(Payment payment, int attemptNumber) {
+        validateInput(payment, PaymentStatus.SENT, "confirm");
+        int delay = randomGenerator.nextInt(
+                simulation.getMinDelaySeconds(),
+                simulation.getMaxDelaySeconds() + 1
+        );
+        boolean timedOut = delay > simulation.getTimeoutSeconds();
+        int actualWait = Math.min(delay, simulation.getTimeoutSeconds());
+
+        try {
+            delaySleeper.sleepSeconds(actualWait);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Network simulation was interrupted", ex);
+        }
+
+        log.info("Payment network attempt completed: paymentId={}, attempt={}, simulatedDelaySeconds={}, timedOut={}",
+                payment.getId(), attemptNumber, delay, timedOut);
+        return new ProcessingAttempt(attemptNumber, delay, actualWait, timedOut);
     }
 
     /**

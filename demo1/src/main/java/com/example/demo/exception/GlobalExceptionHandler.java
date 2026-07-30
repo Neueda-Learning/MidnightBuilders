@@ -60,6 +60,7 @@ public class GlobalExceptionHandler {
             PaymentErrorCode.INVALID_CURRENCY,
             PaymentErrorCode.INVALID_ACCOUNT,
             PaymentErrorCode.ACCOUNT_NOT_FOUND,
+            PaymentErrorCode.NETWORK_TIMEOUT,
             PaymentErrorCode.SAME_SOURCE_AND_DESTINATION,
             PaymentErrorCode.VALIDATION_FAILED,
             PaymentErrorCode.INVALID_STATUS_TRANSITION
@@ -328,6 +329,7 @@ public class GlobalExceptionHandler {
             case INVALID_CURRENCY -> "Payment currency is invalid";
             case INVALID_ACCOUNT -> "Payment account is invalid";
             case ACCOUNT_NOT_FOUND -> "Source account was not found";
+            case NETWORK_TIMEOUT -> "Payment confirmation timed out after retries";
             case SAME_SOURCE_AND_DESTINATION -> "Source and destination accounts must be different";
             case DUPLICATE_PAYMENT -> "Duplicate payment request with same idempotency key but different content";
             case INVALID_STATUS_TRANSITION -> "Payment status transition is not allowed";
@@ -338,4 +340,3 @@ public class GlobalExceptionHandler {
         };
     }
 }
-

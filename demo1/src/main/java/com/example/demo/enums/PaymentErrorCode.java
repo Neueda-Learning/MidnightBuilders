@@ -88,6 +88,8 @@ public enum PaymentErrorCode {
      * Triggered when: timeout, connection refused, or similar in processing simulator.
      * HTTP Status: 503 (optional for iteration 1)
      */
-    NETWORK_ERROR
-}
+    NETWORK_ERROR,
 
+    /** All configured network attempts exceeded the allowed delay. */
+    NETWORK_TIMEOUT
+}

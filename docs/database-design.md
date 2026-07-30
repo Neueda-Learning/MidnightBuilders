@@ -1,5 +1,7 @@
 # Payment Processing System - Database Design
 
+> Iteration 2 更新：数据库现包含 `accounts`，由 V3 创建、V4 写入演示数据、V5 补充账户类型、币种、状态和乐观锁版本。
+
 ## 1. 数据库设计说明
 
 本系统使用 MySQL 作为数据存储。
@@ -12,6 +14,23 @@
 2. Payment Status History 表保存所有状态变化记录；
 3. 一个 Payment 可以拥有多条状态历史记录；
 4. 状态历史用于 Audit Trail（审计追踪）。
+5. Account 表保存可作为付款方的本地账户主数据，Payment 的 sourceAccount 在 VALIDATED 阶段按账号查询。
+
+## Account 表（Iteration 2）
+
+| Column | Type | Constraint | Description |
+|---|---|---|---|
+| id | VARCHAR(36) | Primary Key | Account 内部 ID |
+| account_number | VARCHAR(50) | NOT NULL, UNIQUE | 付款方业务账号 |
+| account_name | VARCHAR(100) | NOT NULL | 户名 |
+| account_type | VARCHAR(20) | NOT NULL | PERSONAL/BUSINESS |
+| currency | VARCHAR(3) | NOT NULL | 账户主币种 |
+| status | VARCHAR(20) | NOT NULL | ACTIVE/BLOCKED/CLOSED |
+| version | BIGINT | NOT NULL | 乐观锁版本 |
+| created_at | TIMESTAMP | NOT NULL | 创建时间 |
+| updated_at | TIMESTAMP | NOT NULL | 更新时间 |
+
+Iteration 2 的付款方合法性最低规则是 `payments.source_account` 必须能按 `accounts.account_number` 找到记录。目标账户允许是外部账户，因此不要求出现在 accounts 表。
 
 ---
 

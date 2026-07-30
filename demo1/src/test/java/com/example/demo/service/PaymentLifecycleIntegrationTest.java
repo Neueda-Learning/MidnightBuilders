@@ -252,6 +252,34 @@ class PaymentLifecycleIntegrationTest {
         assertEquals("ACCOUNT_NOT_FOUND", history.get(2).getErrorCode(), "失败历史应记录 ACCOUNT_NOT_FOUND");
     }
 
+    @Test
+    void processPayment_invalidBusinessField_shouldFailFromCreatedToFailed() {
+        CreatePaymentRequest invalid = new CreatePaymentRequest(
+                "ACC-SOURCE-01",
+                "ACC-DEST-02",
+                BigDecimal.ZERO,
+                "USD",
+                "invalid amount"
+        );
+        PaymentService.CreatePaymentResult created = paymentService.createPayment(
+                invalid,
+                UUID.randomUUID().toString()
+        );
+
+        var result = paymentService.processPayment(created.getPaymentResponse().getId());
+
+        assertEquals("FAILED", result.getCurrentStatus());
+        assertEquals("VALIDATION", result.getFailureStage());
+        assertEquals("INVALID_AMOUNT", result.getErrorCode());
+
+        List<PaymentStatusHistory> history = historyRepository.findAllByPaymentIdOrderByChangedAtAsc(
+                created.getPaymentResponse().getId()
+        );
+        assertEquals(2, history.size());
+        assertEquals(PaymentStatus.CREATED, history.get(1).getFromStatus());
+        assertEquals(PaymentStatus.FAILED, history.get(1).getToStatus());
+    }
+
     // ==================== 场景 3：历史时间戳升序 ====================
 
     /**
@@ -363,4 +391,3 @@ class PaymentLifecycleIntegrationTest {
                 "筛选结果中所有支付状态都应为 CREATED");
     }
 }
-
