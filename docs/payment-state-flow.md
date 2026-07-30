@@ -1,5 +1,7 @@
 # Payment Processing System - Payment State Flow
 
+> Iteration 2 更新：三条失败分支分别代表字段业务校验失败、付款方 Account 不存在、网络确认重试耗尽。
+
 ## 1. 文档说明
 
 本文档描述 Payment Processing System 中付款（Payment）的生命周期状态流转规则。
@@ -178,6 +180,16 @@ FAILED
 | SENT | FAILED | 处理失败 |
 | COMPLETED | 无 | 最终成功状态 |
 | FAILED | 无 | 最终失败状态 |
+
+## 4.1 Iteration 2 失败阶段定义
+
+| 转换 | 判断 | 主要错误码 |
+|---|---|---|
+| CREATED → FAILED | 金额、币种、账户格式或相同账户等业务字段规则 | INVALID_AMOUNT、INVALID_CURRENCY、INVALID_ACCOUNT、SAME_SOURCE_AND_DESTINATION |
+| VALIDATED → FAILED | sourceAccount 不存在于 accounts 表 | ACCOUNT_NOT_FOUND |
+| SENT → FAILED | 0–20 秒随机网络延迟中，首次请求和三次重试均超过 10 秒 | NETWORK_TIMEOUT |
+
+网络延迟 10 秒视为成功，11–20 秒视为超时。每次重试独立生成随机值，最大总尝试次数为 4。
 
 ---
 

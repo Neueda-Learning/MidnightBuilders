@@ -1,5 +1,7 @@
 # Payment Processing System - API Design
 
+> Iteration 2 更新：处理付款响应可以返回失败阶段、网络尝试次数和模拟延迟序列。
+
 ## 1. API Overview
 
 本文档定义 Payment Processing System 的 REST API。
@@ -228,6 +230,32 @@ Response:
 ---
 
 # 6. Filter Payments By Status
+
+## Iteration 2 Process Response 扩展
+
+`POST /api/payments/{id}/process` 保持原路径。响应新增以下可选字段：
+
+| Field | Type | Description |
+|---|---|---|
+| failureStage | String | VALIDATION、ACCOUNT、NETWORK；成功时为 null |
+| attemptCount | Integer | 实际网络尝试次数 |
+| simulatedDelays | Integer[] | 每次生成的模拟延迟秒数 |
+
+网络重试耗尽示例：
+
+```json
+{
+  "id": "payment-003",
+  "previousStatus": "CREATED",
+  "currentStatus": "FAILED",
+  "message": "Payment processing failed",
+  "errorCode": "NETWORK_TIMEOUT",
+  "errorMessage": "Network delay exceeded the timeout on 4 attempts",
+  "attemptCount": 4,
+  "simulatedDelays": [20, 15, 12, 11],
+  "failureStage": "NETWORK"
+}
+```
 
 
 ## GET /api/payments?status={status}

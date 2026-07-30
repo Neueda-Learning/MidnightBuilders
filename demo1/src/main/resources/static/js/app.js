@@ -43,6 +43,15 @@ const STATUS_META = {
 };
 const statusLabels = Object.fromEntries(Object.entries(STATUS_META).map(([status, meta]) => [status, meta.label]));
 const currencyLocales = { CNY: "zh-CN", USD: "en-US", GBP: "en-GB", EUR: "de-DE" };
+const failureMessages = {
+    ACCOUNT_NOT_FOUND: "付款方账户不在系统账户库中",
+    NETWORK_TIMEOUT: "网络延迟超过 10 秒，重试三次后仍未成功",
+    NETWORK_ERROR: "付款网络暂时不可用",
+    INVALID_AMOUNT: "付款金额不符合业务规则",
+    INVALID_CURRENCY: "付款币种不符合业务规则",
+    INVALID_ACCOUNT: "付款账户字段不符合业务规则",
+    SAME_SOURCE_AND_DESTINATION: "付款账户与收款账户不能相同"
+};
 const state = {
     payments: [],
     selectedId: null,
@@ -706,7 +715,13 @@ async function processSelectedPayment() {
             currentStatus: result.currentStatus,
             previousStatus: result.previousStatus
         });
-        toast(result.message || "付款处理完成");
+        if (result.currentStatus === "FAILED") {
+            const detail = failureMessages[result.errorCode] || result.errorMessage || "付款处理失败";
+            const attempts = result.attemptCount ? `（共尝试 ${result.attemptCount} 次）` : "";
+            toast(`${result.errorCode || "PROCESSING_ERROR"}：${detail}${attempts}`, "error");
+        } else {
+            toast(result.message || "付款处理完成");
+        }
         await Promise.all([loadPayments({ quiet: true }), openDetail(state.selectedId)]);
     } catch (error) {
         console.error(`${UI_LOG_PREFIX} Process payment failed`, {

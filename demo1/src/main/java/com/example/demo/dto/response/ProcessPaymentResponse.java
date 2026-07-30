@@ -1,5 +1,7 @@
 package com.example.demo.dto.response;
 
+import java.util.List;
+
 /**
  * DTO for payment processing result response.
  *
@@ -19,18 +21,31 @@ public class ProcessPaymentResponse {
     private String message;
     private String errorCode;
     private String errorMessage;
+    private Integer attemptCount;
+    private List<Integer> simulatedDelays;
+    private String failureStage;
 
     public ProcessPaymentResponse() {
     }
 
     public ProcessPaymentResponse(String id, String previousStatus, String currentStatus,
                                   String message, String errorCode, String errorMessage) {
+        this(id, previousStatus, currentStatus, message, errorCode, errorMessage, null, List.of(), null);
+    }
+
+    public ProcessPaymentResponse(String id, String previousStatus, String currentStatus,
+                                  String message, String errorCode, String errorMessage,
+                                  Integer attemptCount, List<Integer> simulatedDelays,
+                                  String failureStage) {
         this.id = id;
         this.previousStatus = previousStatus;
         this.currentStatus = currentStatus;
         this.message = message;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.attemptCount = attemptCount;
+        this.simulatedDelays = simulatedDelays == null ? List.of() : List.copyOf(simulatedDelays);
+        this.failureStage = failureStage;
     }
 
     public String getId() {
@@ -80,5 +95,28 @@ public class ProcessPaymentResponse {
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
     }
-}
 
+    public Integer getAttemptCount() {
+        return attemptCount;
+    }
+
+    public void setAttemptCount(Integer attemptCount) {
+        this.attemptCount = attemptCount;
+    }
+
+    public List<Integer> getSimulatedDelays() {
+        return simulatedDelays;
+    }
+
+    public void setSimulatedDelays(List<Integer> simulatedDelays) {
+        this.simulatedDelays = simulatedDelays;
+    }
+
+    public String getFailureStage() {
+        return failureStage;
+    }
+
+    public void setFailureStage(String failureStage) {
+        this.failureStage = failureStage;
+    }
+}

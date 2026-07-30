@@ -3,6 +3,7 @@ package com.example.demo.dto.internal;
 import com.example.demo.enums.PaymentErrorCode;
 
 import java.util.Objects;
+import java.util.List;
 
 /**
  * Internal result object for simulated payment processing steps.
@@ -31,13 +32,17 @@ public final class ProcessingResult {
      */
     private final String errorMessage;
 
+    private final List<ProcessingAttempt> attempts;
+
     /**
      * Private constructor to enforce factory method usage.
      */
-    private ProcessingResult(boolean success, PaymentErrorCode errorCode, String errorMessage) {
+    private ProcessingResult(boolean success, PaymentErrorCode errorCode, String errorMessage,
+                             List<ProcessingAttempt> attempts) {
         this.success = success;
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+        this.attempts = List.copyOf(attempts);
     }
 
     /**
@@ -46,7 +51,7 @@ public final class ProcessingResult {
      * @return success result with no error details
      */
     public static ProcessingResult success() {
-        return new ProcessingResult(true, null, null);
+        return new ProcessingResult(true, null, null, List.of());
     }
 
     /**
@@ -63,7 +68,20 @@ public final class ProcessingResult {
         if (errorMessage == null || errorMessage.trim().isEmpty()) {
             throw new IllegalArgumentException("errorMessage must not be blank");
         }
-        return new ProcessingResult(false, errorCode, errorMessage.trim());
+        return new ProcessingResult(false, errorCode, errorMessage.trim(), List.of());
+    }
+
+    public static ProcessingResult success(List<ProcessingAttempt> attempts) {
+        return new ProcessingResult(true, null, null, attempts);
+    }
+
+    public static ProcessingResult failure(PaymentErrorCode errorCode, String errorMessage,
+                                           List<ProcessingAttempt> attempts) {
+        Objects.requireNonNull(errorCode, "errorCode must not be null");
+        if (errorMessage == null || errorMessage.trim().isEmpty()) {
+            throw new IllegalArgumentException("errorMessage must not be blank");
+        }
+        return new ProcessingResult(false, errorCode, errorMessage.trim(), attempts);
     }
 
     /**
@@ -87,6 +105,14 @@ public final class ProcessingResult {
         return errorMessage;
     }
 
+    public List<ProcessingAttempt> getAttempts() {
+        return attempts;
+    }
+
+    public int getAttemptCount() {
+        return attempts.size();
+    }
+
     @Override
     public String toString() {
         return "ProcessingResult{" +
@@ -96,4 +122,3 @@ public final class ProcessingResult {
                 '}';
     }
 }
-

@@ -4,6 +4,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Version;
+import com.example.demo.enums.AccountStatus;
+import com.example.demo.enums.AccountType;
 import java.time.Instant;
 
 /**
@@ -26,6 +31,21 @@ public class Account {
 
     @Column(name = "account_name", length = 100, nullable = false)
     private String accountName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_type", length = 20, nullable = false)
+    private AccountType accountType = AccountType.BUSINESS;
+
+    @Column(name = "currency", length = 3, nullable = false)
+    private String currency = "CNY";
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private AccountStatus status = AccountStatus.ACTIVE;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -68,6 +88,38 @@ public class Account {
         this.accountName = accountName;
     }
 
+    public AccountType getAccountType() {
+        return accountType;
+    }
+
+    public void setAccountType(AccountType accountType) {
+        this.accountType = accountType;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
+    }
+
+    public AccountStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(AccountStatus status) {
+        this.status = status;
+    }
+
+    public long getVersion() {
+        return version;
+    }
+
+    public void setVersion(long version) {
+        this.version = version;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -84,4 +136,3 @@ public class Account {
         this.updatedAt = updatedAt;
     }
 }
-

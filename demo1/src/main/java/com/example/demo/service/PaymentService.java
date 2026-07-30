@@ -46,7 +46,8 @@ public class PaymentService {
     private final PaymentHistoryService paymentHistoryService;
     private final PaymentLifecycleService paymentLifecycleService;
     private final AccountValidationService accountValidationService;
-    private final PaymentProcessingSimulator paymentProcessingSimulator;
+    private final PaymentValidationService paymentValidationService;
+    private final NetworkRetryService networkRetryService;
     private final PaymentMapper paymentMapper;
     private final RequestFingerprintGenerator requestFingerprintGenerator;
     private final Clock clock;
@@ -55,7 +56,8 @@ public class PaymentService {
                           PaymentHistoryService paymentHistoryService,
                           PaymentLifecycleService paymentLifecycleService,
                           AccountValidationService accountValidationService,
-                          PaymentProcessingSimulator paymentProcessingSimulator,
+                          PaymentValidationService paymentValidationService,
+                          NetworkRetryService networkRetryService,
                           PaymentMapper paymentMapper,
                           RequestFingerprintGenerator requestFingerprintGenerator,
                           Clock clock) {
@@ -63,7 +65,8 @@ public class PaymentService {
         this.paymentHistoryService = paymentHistoryService;
         this.paymentLifecycleService = paymentLifecycleService;
         this.accountValidationService = accountValidationService;
-        this.paymentProcessingSimulator = paymentProcessingSimulator;
+        this.paymentValidationService = paymentValidationService;
+        this.networkRetryService = networkRetryService;
         this.paymentMapper = paymentMapper;
         this.requestFingerprintGenerator = requestFingerprintGenerator;
         this.clock = clock;
@@ -77,7 +80,7 @@ public class PaymentService {
                 request == null ? null : request.getAmount());
 
         String normalizedKey = normalizeAndValidateIdempotencyKey(idempotencyKey);
-        normalizeAndValidateCreateRequest(request);
+        normalizeCreateRequest(request);
 
         log.info("Create payment request validated successfully: idempotencyKey={}, sourceAccount={}, destinationAccount={}, referenceLength={}",
                 maskToken(normalizedKey),
@@ -137,7 +140,6 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
     public ProcessPaymentResponse processPayment(String paymentId) {
         Payment current = findPaymentOrThrow(paymentId);
         PaymentStatus previousStatus = current.getStatus();
@@ -147,12 +149,12 @@ public class PaymentService {
         }
 
         try {
-            validatePaymentForProcessing(current);
+            paymentValidationService.validatePaymentForProcessing(current);
         } catch (RuntimeException ex) {
             Payment failed = paymentLifecycleService.markFailed(
                     current,
                     extractErrorCode(ex),
-                    "Payment validation failed",
+                    extractErrorDetail(ex),
                     ex.getMessage()
             );
             return toFailedResponse(failed, previousStatus);
@@ -173,20 +175,9 @@ public class PaymentService {
                 return toFailedResponse(failed, previousStatus);
             }
 
-            ProcessingResult sendResult = paymentProcessingSimulator.sendPayment(current);
-            if (!sendResult.isSuccess()) {
-                Payment failed = paymentLifecycleService.markFailed(
-                        current,
-                        sendResult.getErrorCode(),
-                        sendResult.getErrorMessage(),
-                        "Payment send stage failed"
-                );
-                return toFailedResponse(failed, previousStatus);
-            }
-
             current = paymentLifecycleService.markSent(current);
 
-            ProcessingResult confirmResult = paymentProcessingSimulator.confirmPayment(current);
+            ProcessingResult confirmResult = networkRetryService.executeConfirmation(current);
             if (!confirmResult.isSuccess()) {
                 Payment failed = paymentLifecycleService.markFailed(
                         current,
@@ -194,7 +185,7 @@ public class PaymentService {
                         confirmResult.getErrorMessage(),
                         "Payment confirm stage failed"
                 );
-                return toFailedResponse(failed, previousStatus);
+                return toFailedResponse(failed, previousStatus, "NETWORK", confirmResult);
             }
 
             current = paymentLifecycleService.markCompleted(current);
@@ -204,6 +195,11 @@ public class PaymentService {
                     current.getStatus().name(),
                     "Payment processed successfully",
                     null,
+                    null,
+                    confirmResult.getAttemptCount(),
+                    confirmResult.getAttempts().stream()
+                            .map(attempt -> attempt.getSimulatedDelaySeconds())
+                            .collect(Collectors.toList()),
                     null
             );
         } catch (RuntimeException ex) {
@@ -252,23 +248,20 @@ public class PaymentService {
         return normalized;
     }
 
-    private void normalizeAndValidateCreateRequest(CreatePaymentRequest request) {
+    private void normalizeCreateRequest(CreatePaymentRequest request) {
         if (request == null) {
             throw new IllegalArgumentException(PaymentErrorCode.VALIDATION_FAILED.name());
         }
 
         String source = normalizeAccount(request.getSourceAccount());
         String destination = normalizeAccount(request.getDestinationAccount());
-        if (source.equals(destination)) {
-            throw new IllegalArgumentException(PaymentErrorCode.SAME_SOURCE_AND_DESTINATION.name());
+        if (request.getAmount() == null) {
+            throw new IllegalArgumentException(PaymentErrorCode.INVALID_AMOUNT.name());
         }
 
-        validateAmount(request.getAmount());
-
-        String normalizedCurrency = normalizeCurrency(request.getCurrency());
-        if (!SUPPORTED_CURRENCIES.contains(normalizedCurrency)) {
-            throw new IllegalArgumentException(PaymentErrorCode.INVALID_CURRENCY.name());
-        }
+        String normalizedCurrency = request.getCurrency() == null
+                ? ""
+                : request.getCurrency().trim().toUpperCase(Locale.ROOT);
 
         String reference = request.getReference() == null ? null : request.getReference().trim();
         if (reference != null && reference.length() > 255) {
@@ -279,23 +272,6 @@ public class PaymentService {
         request.setDestinationAccount(destination);
         request.setCurrency(normalizedCurrency);
         request.setReference(reference);
-    }
-
-    private void validatePaymentForProcessing(Payment payment) {
-        Objects.requireNonNull(payment, "payment must not be null");
-
-        normalizeAccount(payment.getSourceAccount());
-        normalizeAccount(payment.getDestinationAccount());
-        if (payment.getSourceAccount().trim().equals(payment.getDestinationAccount().trim())) {
-            throw new IllegalArgumentException(PaymentErrorCode.SAME_SOURCE_AND_DESTINATION.name());
-        }
-
-        validateAmount(payment.getAmount());
-
-        String normalizedCurrency = normalizeCurrency(payment.getCurrency());
-        if (!SUPPORTED_CURRENCIES.contains(normalizedCurrency)) {
-            throw new IllegalArgumentException(PaymentErrorCode.INVALID_CURRENCY.name());
-        }
     }
 
     private String normalizeAccount(String account) {
@@ -422,13 +398,27 @@ public class PaymentService {
     }
 
     private ProcessPaymentResponse toFailedResponse(Payment failed, PaymentStatus previousStatus) {
+        String failureStage = failed.getErrorCode() != null
+                && failed.getErrorCode().equals(PaymentErrorCode.ACCOUNT_NOT_FOUND.name())
+                ? "ACCOUNT"
+                : "VALIDATION";
+        return toFailedResponse(failed, previousStatus, failureStage, null);
+    }
+
+    private ProcessPaymentResponse toFailedResponse(Payment failed, PaymentStatus previousStatus,
+                                                    String failureStage, ProcessingResult processingResult) {
         return new ProcessPaymentResponse(
                 failed.getId(),
                 previousStatus.name(),
                 failed.getStatus().name(),
                 "Payment processing failed",
                 failed.getErrorCode(),
-                failed.getErrorMessage()
+                failed.getErrorMessage(),
+                processingResult == null ? null : processingResult.getAttemptCount(),
+                processingResult == null ? List.of() : processingResult.getAttempts().stream()
+                        .map(attempt -> attempt.getSimulatedDelaySeconds())
+                        .collect(Collectors.toList()),
+                failureStage
         );
     }
 

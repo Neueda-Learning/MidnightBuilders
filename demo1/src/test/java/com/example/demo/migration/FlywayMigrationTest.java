@@ -25,7 +25,7 @@ class FlywayMigrationTest {
                 .load();
 
         int executed = flyway.migrate().migrationsExecuted;
-        assertEquals(4, executed, "Flyway should execute V1 through V4 migrations");
+        assertEquals(5, executed, "Flyway should execute V1 through V5 migrations");
 
         try (Connection connection = DriverManager.getConnection(url, "sa", "")) {
             assertTrue(tableExists(connection, "PAYMENTS"));

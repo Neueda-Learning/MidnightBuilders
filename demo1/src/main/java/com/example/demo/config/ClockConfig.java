@@ -4,6 +4,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.util.random.RandomGenerator;
+
+import com.example.demo.time.DelaySleeper;
 
 /**
  * Time source configuration for application services.
@@ -24,5 +27,14 @@ public class ClockConfig {
     public Clock clock() {
         return Clock.systemUTC();
     }
-}
 
+    @Bean
+    public RandomGenerator paymentDelayRandomGenerator() {
+        return RandomGenerator.getDefault();
+    }
+
+    @Bean
+    public DelaySleeper delaySleeper() {
+        return seconds -> Thread.sleep(seconds * 1000L);
+    }
+}
