@@ -23,9 +23,8 @@ button { cursor: pointer; }
 .app-shell { min-height: 100vh; }
 .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 20; display: flex; width: 248px; flex-direction: column; padding: 30px 20px; color: #fff; background: #20292f; }
 .brand { display: flex; align-items: center; gap: 13px; padding: 0 10px 34px; color: #fff; text-decoration: none; }
-.brand-mark { position: relative; display: grid; width: 35px; height: 28px; grid-template-columns: 1fr 1fr; gap: 2px; overflow: hidden; transform: skew(-7deg); }
-.brand-mark i { background: var(--hsbc-red); clip-path: polygon(0 0, 100% 50%, 0 100%); }
-.brand-mark i:last-child { transform: rotate(180deg); }
+.brand-mark { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 12px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 10px 24px rgba(0,0,0,.18); overflow: hidden; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .brand strong { display: block; font-size: 17px; letter-spacing: .2px; }
 .brand small { display: block; margin-top: 3px; color: #aeb8be; font-size: 8px; letter-spacing: 2.4px; }
 .nav-list { display: grid; gap: 7px; }
