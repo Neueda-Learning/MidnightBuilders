@@ -1,7 +1,5 @@
 # Payments Processing System Training Project
 
-> Note: This file is the original training brief. For implementation contracts in this repository, `docs/iteration1/01-project-structure.md`, `docs/iteration1/02-backend-method-design.md`, and `docs/iteration1/03-interface-contracts.md` are the source of truth.
-
 [TOC]
 
 ## Overview
