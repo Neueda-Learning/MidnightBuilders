@@ -1,7 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
   <title>Midnight Pay</title>
-  <rect width="64" height="64" rx="12" fill="#20292f"/>
-  <path d="M14 16L34 32L14 48V16Z" fill="#db0011"/>
-  <path d="M50 16L30 32L50 48V16Z" fill="#db0011"/>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="18" y1="20" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#c4b5fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <circle cx="41" cy="23" r="11" fill="#f8fafc" opacity="0.96"/>
+  <circle cx="46" cy="20" r="11" fill="url(#bg)"/>
+  <path d="M18 42c3.6-5.4 9-8.3 16.2-8.3 6.2 0 11.2 2.4 15.8 7.2" fill="none" stroke="url(#accent)" stroke-linecap="round" stroke-width="5.2"/>
+  <circle cx="18" cy="42" r="3.2" fill="#67e8f9"/>
+  <circle cx="50" cy="41" r="3.2" fill="#c4b5fd"/>
+  <path d="M23 17.5l1.4 3.2 3.4.3-2.6 2.2.8 3.3-3-1.8-3 1.8.8-3.3-2.6-2.2 3.4-.3 1.4-3.2Z" fill="#fde68a"/>
 </svg>
 
