@@ -45,6 +45,10 @@ button { cursor: pointer; }
 .breadcrumb b { color: #c5c9cc; }.breadcrumb strong { color: #3b464e; }
 .top-actions, .operator { display: flex; align-items: center; }
 .top-actions { gap: 20px; }.operator { gap: 10px; padding-left: 20px; border-left: 1px solid var(--line); }
+.language-switcher { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; color: #90999f; background: #fff; font-size: 10px; }
+.language-option { padding: 3px 7px; border: 0; border-radius: 999px; color: #6f7980; background: transparent; font: inherit; font-weight: 700; cursor: pointer; }
+.language-option:hover { color: var(--hsbc-red); }
+.language-option.active { color: #fff; background: var(--hsbc-red); }
 .operator strong, .operator small { display: block; }.operator strong { font-size: 12px; }.operator small { margin-top: 3px; color: #8a949b; font-size: 9px; }
 .avatar { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 50%; color: #fff; background: #303b42; font-size: 11px; font-weight: 700; }
 .icon-button { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: #4b565e; background: #fff; font-size: 19px; transition: .2s ease; }
