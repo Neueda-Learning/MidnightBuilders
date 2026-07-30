@@ -2,9 +2,11 @@ package com.example.demo.service;
 
 import com.example.demo.dto.request.CreatePaymentRequest;
 import com.example.demo.dto.response.PaymentHistoryResponse;
+import com.example.demo.entity.Account;
 import com.example.demo.entity.PaymentStatusHistory;
 import com.example.demo.enums.PaymentStatus;
 import com.example.demo.enums.TriggeredBy;
+import com.example.demo.repository.AccountRepository;
 import com.example.demo.repository.PaymentStatusHistoryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +43,9 @@ class PaymentLifecycleIntegrationTest {
     @Autowired
     private PaymentStatusHistoryRepository historyRepository;
 
+    @Autowired
+    private AccountRepository accountRepository;
+
     // ==================== 测试辅助方法 ====================
 
     /**
@@ -55,10 +61,33 @@ class PaymentLifecycleIntegrationTest {
         );
     }
 
+    private CreatePaymentRequest missingPayerAccountRequest() {
+        return new CreatePaymentRequest(
+                "ACC-NOT-FOUND-01",
+                "ACC-DEST-02",
+                new BigDecimal("250.00"),
+                "USD",
+                "missing payer account test"
+        );
+    }
+
+    private void ensurePayerAccountExists(String accountNumber) {
+        accountRepository.findByAccountNumber(accountNumber).orElseGet(() ->
+                accountRepository.save(new Account(
+                        UUID.randomUUID().toString(),
+                        accountNumber,
+                        "Test Payer Account",
+                        Instant.now(),
+                        Instant.now()
+                ))
+        );
+    }
+
     /**
      * 创建一笔支付并返回其 ID（封装重复的创建步骤）。
      */
     private String createAndGetId() {
+        ensurePayerAccountExists("ACC-SOURCE-01");
         String key = UUID.randomUUID().toString();
         PaymentService.CreatePaymentResult result = paymentService.createPayment(validRequest(), key);
         return result.getPaymentResponse().getId();
@@ -199,6 +228,28 @@ class PaymentLifecycleIntegrationTest {
         assertEquals(TriggeredBy.SYSTEM, history.get(1).getTriggeredBy(), "VALIDATED 应由 SYSTEM 触发");
         assertEquals(TriggeredBy.SYSTEM, history.get(2).getTriggeredBy(), "SENT 应由 SYSTEM 触发");
         assertEquals(TriggeredBy.SYSTEM, history.get(3).getTriggeredBy(), "COMPLETED 应由 SYSTEM 触发");
+    }
+
+    @Test
+    void processPayment_missingPayerAccount_shouldFailFromValidatedToFailed() {
+        String key = UUID.randomUUID().toString();
+        PaymentService.CreatePaymentResult created = paymentService.createPayment(missingPayerAccountRequest(), key);
+        String paymentId = created.getPaymentResponse().getId();
+
+        var result = paymentService.processPayment(paymentId);
+
+        assertEquals("CREATED", result.getPreviousStatus(), "处理入口 previousStatus 应为 CREATED");
+        assertEquals("FAILED", result.getCurrentStatus(), "付款账户不存在时应失败");
+        assertEquals("ACCOUNT_NOT_FOUND", result.getErrorCode(), "错误码应为 ACCOUNT_NOT_FOUND");
+        assertEquals("Source account does not exist", result.getErrorMessage(), "错误消息应说明付款账户不存在");
+
+        List<PaymentStatusHistory> history = historyRepository.findAllByPaymentIdOrderByChangedAtAsc(paymentId);
+        assertEquals(3, history.size(), "应形成 CREATED -> VALIDATED -> FAILED 三条历史记录");
+        assertEquals(PaymentStatus.CREATED, history.get(0).getToStatus());
+        assertEquals(PaymentStatus.VALIDATED, history.get(1).getToStatus());
+        assertEquals(PaymentStatus.FAILED, history.get(2).getToStatus());
+        assertEquals(PaymentStatus.VALIDATED, history.get(2).getFromStatus(), "失败前驱状态应为 VALIDATED");
+        assertEquals("ACCOUNT_NOT_FOUND", history.get(2).getErrorCode(), "失败历史应记录 ACCOUNT_NOT_FOUND");
     }
 
     // ==================== 场景 3：历史时间戳升序 ====================

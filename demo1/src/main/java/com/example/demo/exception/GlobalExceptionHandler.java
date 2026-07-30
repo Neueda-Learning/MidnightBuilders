@@ -59,6 +59,7 @@ public class GlobalExceptionHandler {
             PaymentErrorCode.INVALID_AMOUNT,
             PaymentErrorCode.INVALID_CURRENCY,
             PaymentErrorCode.INVALID_ACCOUNT,
+            PaymentErrorCode.ACCOUNT_NOT_FOUND,
             PaymentErrorCode.SAME_SOURCE_AND_DESTINATION,
             PaymentErrorCode.VALIDATION_FAILED,
             PaymentErrorCode.INVALID_STATUS_TRANSITION
@@ -295,8 +296,11 @@ public class GlobalExceptionHandler {
             return null;
         }
 
+        String message = ex.getMessage().trim();
+        String candidate = message.contains(":") ? message.substring(0, message.indexOf(':')).trim() : message;
+
         try {
-            return PaymentErrorCode.valueOf(ex.getMessage().trim());
+            return PaymentErrorCode.valueOf(candidate);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
@@ -323,6 +327,7 @@ public class GlobalExceptionHandler {
             case INVALID_AMOUNT -> "Payment amount is invalid";
             case INVALID_CURRENCY -> "Payment currency is invalid";
             case INVALID_ACCOUNT -> "Payment account is invalid";
+            case ACCOUNT_NOT_FOUND -> "Source account was not found";
             case SAME_SOURCE_AND_DESTINATION -> "Source and destination accounts must be different";
             case DUPLICATE_PAYMENT -> "Duplicate payment request with same idempotency key but different content";
             case INVALID_STATUS_TRANSITION -> "Payment status transition is not allowed";
